@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+
+/* Aturan CSS Anda lainnya di bawah sini */
+body {
+  margin: 0;
+  /* Contoh penggunaan font */
+  font-family: "Montserrat", sans-serif;
+}
+
+/* Aturan CSS Anda lainnya di bawah sini */
+body {
+  font-family: "Montserrat", sans-serif;
+}
