@@ -45,31 +45,39 @@ passport.use(new GoogleStrategy({
     callbackURL: "/api/auth/google/callback"
 }, async (accessToken, refreshToken, profile, done) => {
     try {
+        console.log("Google Profile:", profile.displayName); // Debug nama
+        
         const email = profile.emails[0].value;
+        // Ambil URL foto. Google mengirim array, kita ambil index 0.
         const photoUrl = (profile.photos && profile.photos.length > 0) ? profile.photos[0].value : null;
-        const name = profile.displayName; // <--- AMBIL NAMA DARI GOOGLE
+
+        console.log("Photo URL dari Google:", photoUrl); // Debug URL foto
 
         // 1. Cek User di DB
         const [rows] = await db.query("SELECT * FROM users WHERE email = ?", [email]);
 
         if (rows.length > 0) {
+            // ============================================================
+            // PERBAIKAN UTAMA DI SINI:
+            // Jika user sudah ada, kita UPDATE kolom avatar-nya
+            // ============================================================
             const existingUser = rows[0];
             
-            // UPDATE avatar DAN username agar selalu fresh
-            await db.query("UPDATE users SET avatar = ?, username = ? WHERE id = ?", [photoUrl, name, existingUser.id]);
+            await db.query("UPDATE users SET avatar = ? WHERE id = ?", [photoUrl, existingUser.id]);
             
-            existingUser.avatar = photoUrl;
-            existingUser.username = name; // Update object session
+            // Update objek user yang akan dikirim ke serializeUser
+            existingUser.avatar = photoUrl; 
             
             return done(null, existingUser);
+
         } else {
-            // INSERT User Baru (tambahkan username)
+            // 2. User Baru (Belum ada di DB)
             const [result] = await db.query(
-                "INSERT INTO users (email, password, is_google, avatar, username) VALUES (?, ?, ?, ?, ?)", 
-                [email, null, 1, photoUrl, name]
+                "INSERT INTO users (email, password, is_google, avatar) VALUES (?, ?, ?, ?)", 
+                [email, null, 1, photoUrl]
             );
             
-            const newUser = { id: result.insertId, email: email, avatar: photoUrl, username: name };
+            const newUser = { id: result.insertId, email: email, avatar: photoUrl };
             return done(null, newUser);
         }
     } catch (error) {
@@ -125,24 +133,23 @@ app.get('/api/auth/google/callback',
 );
 
 // ======================= EXISTING ROUTES =======================
+
 app.get("/api/auth/status", async (req, res) => {
     if (req.session.userId) {
         try {
-            // PERUBAHAN: Tambahkan 'email' ke dalam SELECT
-            const [rows] = await db.query("SELECT avatar, username, email FROM users WHERE id = ?", [req.session.userId]);
+            // Ambil avatar user dari database berdasarkan ID session
+            const [rows] = await db.query("SELECT avatar FROM users WHERE id = ?", [req.session.userId]);
             
-            const user = rows[0];
+            const userAvatar = rows.length > 0 ? rows[0].avatar : null;
 
             res.json({ 
                 isAuthenticated: true, 
                 userId: req.session.userId,
-                avatar: user ? user.avatar : null,
-                username: user ? user.username : "User",
-                email: user ? user.email : "" // <--- Kirim email ke frontend
+                avatar: userAvatar // Kirim avatar ke frontend
             });
         } catch (error) {
             console.error("Error fetch status:", error);
-            res.json({ isAuthenticated: true, userId: req.session.userId, avatar: null, username: "User", email: "" });
+            res.json({ isAuthenticated: true, userId: req.session.userId, avatar: null });
         }
     } else {
         res.json({ isAuthenticated: false });

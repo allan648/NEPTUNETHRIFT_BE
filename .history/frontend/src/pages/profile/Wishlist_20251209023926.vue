@@ -1,9 +1,7 @@
 <script setup>
-import { ref, onMounted, onUpdated } from 'vue'
+import { ref } from 'vue'
 import NikeAirMax1 from "@/asset/images/NikeAirMax1.png";
 import Vans from "@/asset/images/Vans.png";
-import AOS from "aos";
-import "aos/dist/aos.css"; // Import CSS AOS
 
 // Data Dummy Wishlist
 const wishlistItems = ref([
@@ -32,7 +30,7 @@ const wishlistItems = ref([
     price: 1890000,
     originalPrice: null,
     discount: null,
-    imageUrl: Vans,
+    imageUrl: Vans, // Ganti dengan gambar yang sesuai
   },
   {
     id: 4,
@@ -41,44 +39,23 @@ const wishlistItems = ref([
     price: 2100000,
     originalPrice: 2500000,
     discount: 15,
-    imageUrl: NikeAirMax1,
+    imageUrl: NikeAirMax1, // Ganti dengan gambar yang sesuai
   }
 ])
 
 const removeFromWishlist = (item) => {
   wishlistItems.value = wishlistItems.value.filter(i => i.id !== item.id);
-  // Refresh animasi saat item dihapus agar layout tetap rapi
-  setTimeout(() => AOS.refresh(), 100); 
 }
 
 const addToCart = (item) => {
   alert(`${item.name} added to cart!`);
 }
-
-// Inisialisasi AOS saat komponen dipasang
-onMounted(() => {
-  AOS.init({
-    once: true, // Animasi hanya berjalan sekali
-    duration: 800, // Durasi animasi 800ms
-    easing: "ease-in-out", // Efek transisi halus
-  });
-});
-
-// Refresh AOS jika ada perubahan data (opsional tapi bagus untuk reaktivitas)
-onUpdated(() => {
-  AOS.refresh();
-});
 </script>
 
 <template>
   <div class="w-full p-4 md:p-8">
     <div class="mx-auto max-w-7xl">
-      
-      <div 
-        class="flex items-center justify-between mb-6"
-        data-aos="fade-down"
-        data-aos-delay="100"
-      >
+      <div class="flex items-center justify-between mb-6">
         <h1 class="text-2xl font-bold text-gray-800">My Wishlist</h1>
         <span class="text-sm text-gray-500">{{ wishlistItems.length }} Items</span>
       </div>
@@ -86,13 +63,11 @@ onUpdated(() => {
       <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
         
         <div 
-          v-for="(item, index) in wishlistItems" 
+          v-for="item in wishlistItems" 
           :key="item.id"
-          class="group relative bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-all duration-300 h-full flex flex-col"
-          
-          data-aos="zoom-in"
-          :data-aos-delay="100 + (index * 100)" 
+          class="group relative bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-all duration-300"
         >
+
           <button
             @click="removeFromWishlist(item)"
             class="absolute top-2 right-2 z-10 p-1.5 bg-white/80 backdrop-blur-sm rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
@@ -103,7 +78,7 @@ onUpdated(() => {
             </svg>
           </button>
 
-          <div class="aspect-square w-full bg-gray-50 relative overflow-hidden flex-shrink-0">
+          <div class="aspect-square w-full bg-gray-50 relative overflow-hidden">
             <img 
               :src="item.imageUrl" 
               :alt="item.name" 
@@ -115,9 +90,8 @@ onUpdated(() => {
             </div>
           </div>
 
-          <div class="p-3 flex flex-col flex-1">
-            
-            <h3 class="text-sm font-medium text-gray-800 mb-1 line-clamp-2 min-h-[2.5em]" :title="item.name">
+          <div class="p-3">
+            <h3 class="text-sm font-medium text-gray-800 truncate mb-1" :title="item.name">
               {{ item.name }}
             </h3>
 
@@ -128,17 +102,16 @@ onUpdated(() => {
               <span class="text-xs text-gray-500">{{ item.rating }}</span>
             </div>
 
-            <div class="flex flex-col mb-4">
+            <div class="flex flex-col mb-3">
                <p class="text-sm font-bold text-gray-900">Rp {{ item.price.toLocaleString('id-ID') }}</p>
                <p v-if="item.originalPrice" class="text-[10px] text-gray-400 line-through">
                   Rp {{ item.originalPrice.toLocaleString('id-ID') }}
                </p>
-               <p v-else class="text-[10px] text-transparent select-none">Spacer</p>
             </div>
 
             <button 
               @click="addToCart(item)"
-              class="mt-auto w-full flex items-center justify-center gap-2 py-2 rounded-md bg-gray-900 text-white text-xs font-semibold hover:bg-blue-600 transition-colors"
+              class="w-full flex items-center justify-center gap-2 py-2 rounded-md bg-gray-900 text-white text-xs font-semibold hover:bg-blue-600 transition-colors"
             >
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
@@ -148,11 +121,7 @@ onUpdated(() => {
           </div>
         </div>
 
-        <div 
-          v-if="wishlistItems.length === 0" 
-          class="col-span-full flex flex-col items-center justify-center py-16 bg-gray-50 rounded-lg border border-dashed border-gray-300"
-          data-aos="fade-up"
-        >
+        <div v-if="wishlistItems.length === 0" class="col-span-full flex flex-col items-center justify-center py-16 bg-gray-50 rounded-lg border border-dashed border-gray-300">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-12 h-12 text-gray-300 mb-2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
           </svg>

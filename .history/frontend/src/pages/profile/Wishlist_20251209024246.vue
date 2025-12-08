@@ -1,9 +1,7 @@
 <script setup>
-import { ref, onMounted, onUpdated } from 'vue'
+import { ref } from 'vue'
 import NikeAirMax1 from "@/asset/images/NikeAirMax1.png";
 import Vans from "@/asset/images/Vans.png";
-import AOS from "aos";
-import "aos/dist/aos.css"; // Import CSS AOS
 
 // Data Dummy Wishlist
 const wishlistItems = ref([
@@ -32,7 +30,7 @@ const wishlistItems = ref([
     price: 1890000,
     originalPrice: null,
     discount: null,
-    imageUrl: Vans,
+    imageUrl: Vans, // Ganti dengan gambar yang sesuai
   },
   {
     id: 4,
@@ -41,44 +39,23 @@ const wishlistItems = ref([
     price: 2100000,
     originalPrice: 2500000,
     discount: 15,
-    imageUrl: NikeAirMax1,
+    imageUrl: NikeAirMax1, // Ganti dengan gambar yang sesuai
   }
 ])
 
 const removeFromWishlist = (item) => {
   wishlistItems.value = wishlistItems.value.filter(i => i.id !== item.id);
-  // Refresh animasi saat item dihapus agar layout tetap rapi
-  setTimeout(() => AOS.refresh(), 100); 
 }
 
 const addToCart = (item) => {
   alert(`${item.name} added to cart!`);
 }
-
-// Inisialisasi AOS saat komponen dipasang
-onMounted(() => {
-  AOS.init({
-    once: true, // Animasi hanya berjalan sekali
-    duration: 800, // Durasi animasi 800ms
-    easing: "ease-in-out", // Efek transisi halus
-  });
-});
-
-// Refresh AOS jika ada perubahan data (opsional tapi bagus untuk reaktivitas)
-onUpdated(() => {
-  AOS.refresh();
-});
 </script>
 
 <template>
   <div class="w-full p-4 md:p-8">
     <div class="mx-auto max-w-7xl">
-      
-      <div 
-        class="flex items-center justify-between mb-6"
-        data-aos="fade-down"
-        data-aos-delay="100"
-      >
+      <div class="flex items-center justify-between mb-6">
         <h1 class="text-2xl font-bold text-gray-800">My Wishlist</h1>
         <span class="text-sm text-gray-500">{{ wishlistItems.length }} Items</span>
       </div>
@@ -86,12 +63,9 @@ onUpdated(() => {
       <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
         
         <div 
-          v-for="(item, index) in wishlistItems" 
+          v-for="item in wishlistItems" 
           :key="item.id"
           class="group relative bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-all duration-300 h-full flex flex-col"
-          
-          data-aos="zoom-in"
-          :data-aos-delay="100 + (index * 100)" 
         >
           <button
             @click="removeFromWishlist(item)"
@@ -109,16 +83,14 @@ onUpdated(() => {
               :alt="item.name" 
               class="h-full w-full object-cover object-center group-hover:scale-105 transition-transform duration-500" 
             />
-            
             <div v-if="item.discount" class="absolute bottom-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-sm">
               -{{ item.discount }}%
             </div>
           </div>
 
           <div class="p-3 flex flex-col flex-1">
-            
             <h3 class="text-sm font-medium text-gray-800 mb-1 line-clamp-2 min-h-[2.5em]" :title="item.name">
-              {{ item.name }}
+               {{ item.name }}
             </h3>
 
             <div class="flex items-center gap-1 mb-2">
@@ -148,11 +120,8 @@ onUpdated(() => {
           </div>
         </div>
 
-        <div 
-          v-if="wishlistItems.length === 0" 
-          class="col-span-full flex flex-col items-center justify-center py-16 bg-gray-50 rounded-lg border border-dashed border-gray-300"
-          data-aos="fade-up"
-        >
+        </div>
+        <div v-if="wishlistItems.length === 0" class="col-span-full flex flex-col items-center justify-center py-16 bg-gray-50 rounded-lg border border-dashed border-gray-300">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-12 h-12 text-gray-300 mb-2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
           </svg>

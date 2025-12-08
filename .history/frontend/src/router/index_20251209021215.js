@@ -75,31 +75,13 @@ const router = createRouter({
           name: "MyOrder",
           component: Myorder,
         },
-        
-          {
-          path: 'user', // URL: /user
-          component: UserLayout, // <--- PENTING! Ini wadah Sidebar-nya
+        {
+          path: "/user",
           children: [
-            { 
-              path: 'profile', // URL: /user/profile
-              name: 'Profile', 
-              component: Profile 
-            },
-            { 
-              path: 'cart', // URL: /user/cart
-              name: 'Cart', 
-              component: Cart 
-            },
-            { 
-              path: 'wishlist', // URL: /user/wishlist
-              name: 'Wishlist', 
-              component: Wishlist 
-            },
-            { 
-              path: 'review', // URL: /user/review
-              name: 'Review', 
-              component: Review 
-            },
+            { path: "profile", name: "Profile", component: Profile },
+            { path: "cart", name: "Cart", component: Cart },
+            { path: "wishlist", name: "Wishlist", component: Wishlist },
+            { path: "review", name: "Review", component: Review },
           ],
         },
       ],

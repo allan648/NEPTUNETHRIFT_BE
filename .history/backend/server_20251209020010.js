@@ -125,24 +125,23 @@ app.get('/api/auth/google/callback',
 );
 
 // ======================= EXISTING ROUTES =======================
+
 app.get("/api/auth/status", async (req, res) => {
     if (req.session.userId) {
         try {
-            // PERUBAHAN: Tambahkan 'email' ke dalam SELECT
-            const [rows] = await db.query("SELECT avatar, username, email FROM users WHERE id = ?", [req.session.userId]);
+            // Ambil avatar user dari database berdasarkan ID session
+            const [rows] = await db.query("SELECT avatar FROM users WHERE id = ?", [req.session.userId]);
             
-            const user = rows[0];
+            const userAvatar = rows.length > 0 ? rows[0].avatar : null;
 
             res.json({ 
                 isAuthenticated: true, 
                 userId: req.session.userId,
-                avatar: user ? user.avatar : null,
-                username: user ? user.username : "User",
-                email: user ? user.email : "" // <--- Kirim email ke frontend
+                avatar: userAvatar // Kirim avatar ke frontend
             });
         } catch (error) {
             console.error("Error fetch status:", error);
-            res.json({ isAuthenticated: true, userId: req.session.userId, avatar: null, username: "User", email: "" });
+            res.json({ isAuthenticated: true, userId: req.session.userId, avatar: null });
         }
     } else {
         res.json({ isAuthenticated: false });

@@ -128,8 +128,8 @@ app.get('/api/auth/google/callback',
 app.get("/api/auth/status", async (req, res) => {
     if (req.session.userId) {
         try {
-            // PERUBAHAN: Tambahkan 'email' ke dalam SELECT
-            const [rows] = await db.query("SELECT avatar, username, email FROM users WHERE id = ?", [req.session.userId]);
+            // Ambil avatar DAN username
+            const [rows] = await db.query("SELECT avatar, username FROM users WHERE id = ?", [req.session.userId]);
             
             const user = rows[0];
 
@@ -137,12 +137,11 @@ app.get("/api/auth/status", async (req, res) => {
                 isAuthenticated: true, 
                 userId: req.session.userId,
                 avatar: user ? user.avatar : null,
-                username: user ? user.username : "User",
-                email: user ? user.email : "" // <--- Kirim email ke frontend
+                username: user ? user.username : "User" // <--- KIRIM USERNAME
             });
         } catch (error) {
             console.error("Error fetch status:", error);
-            res.json({ isAuthenticated: true, userId: req.session.userId, avatar: null, username: "User", email: "" });
+            res.json({ isAuthenticated: true, userId: req.session.userId, avatar: null, username: "User" });
         }
     } else {
         res.json({ isAuthenticated: false });
