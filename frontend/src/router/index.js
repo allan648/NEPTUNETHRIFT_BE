@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
+import { useAuthStore } from "@/stores/authStore";
 // layouts
 import AppLayout from "@/layouts/AppLayout.vue";
 import AdminLayout from "@/layouts/AdminLayout.vue";
@@ -78,7 +79,8 @@ const router = createRouter({
         
           {
           path: 'user', // URL: /user
-          component: UserLayout, // <--- PENTING! Ini wadah Sidebar-nya
+          component: UserLayout,  // <--- PENTING! Ini wadah Sidebar-nya
+          meta: { requiresAuth: true },
           children: [
             { 
               path: 'profile', // URL: /user/profile
@@ -176,7 +178,31 @@ const router = createRouter({
         },
       ],
     },
+    
   ],
 });
+
+router.beforeEach(async (to, from, next) => {
+  const authStore = useAuthStore()
+
+  // 1. Cek status login ke backend setiap kali pindah halaman
+  // (Agar saat di-refresh, status login tetap terbaca)
+  await authStore.checkAuth()
+
+  // 2. Jika halaman tujuan butuh login (ada meta requiresAuth) 
+  // DAN user ternyata belum login (!isAuthenticated)
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+    
+    // A. Buka Modal Login
+    authStore.openLoginModal()
+    
+    // B. Redirect paksa ke Halaman Utama (Dashboard)
+    next('/') 
+    
+  } else {
+    // Jika tidak butuh login ATAU sudah login, silakan lewat
+    next()
+  }
+})
 
 export default router;

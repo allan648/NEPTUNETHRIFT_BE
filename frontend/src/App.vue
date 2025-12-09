@@ -1,11 +1,21 @@
 <script setup>
+import Navbar from '@/components/navbar.vue';
+import { useAuthStore } from '@/stores/authStore';
 import { RouterView } from 'vue-router'
+
+const authStore = useAuthStore(); // Inisialisasi
 </script>
 
 <template>
-  <div>
+  
+  
     <RouterView />
-  </div>
+  
+  <LoginModal
+    v-if="authStore.showLoginModal" 
+    :show="authStore.showLoginModal"
+    @close="authStore.closeLoginModal()"
+  />
 </template>
 
 <style scoped>
