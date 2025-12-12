@@ -205,4 +205,40 @@ router.beforeEach(async (to, from, next) => {
   }
 })
 
+// ... imports di atas tetap sama ...
+
+router.beforeEach(async (to, from, next) => {
+  const authStore = useAuthStore()
+
+  // 1. Cek status login ke backend (PENTING: ini juga mengambil data 'role' terbaru)
+  await authStore.checkAuth()
+
+  // 2. --- PROTEKSI SPESIAL HALAMAN ADMIN ---
+  if (to.path.startsWith('/admin')) {
+    
+    // Kasus A: Belum Login sama sekali
+    if (!authStore.isAuthenticated) {
+      authStore.openLoginModal() // Buka modal
+      return next('/') // Lempar ke Home
+    }
+
+    // Kasus B: Sudah Login, TAPI Role-nya 'customer' (Bukan Admin)
+    // Pastikan di server.js dan authStore.js data 'role' sudah diambil
+    if (authStore.user?.role !== 'admin') {
+      alert("⛔ Akses Ditolak! Anda bukan Administrator.")
+      return next('/') // Lempar ke Home
+    }
+  }
+
+  // 3. --- PROTEKSI HALAMAN USER BIASA (Cart, Profile, dll) ---
+  // Ini kode yang sudah Anda punya sebelumnya
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+    authStore.openLoginModal()
+    return next('/') 
+  }
+
+  // 4. Lolos semua pengecekan, silakan masuk
+  next()
+})
+
 export default router;

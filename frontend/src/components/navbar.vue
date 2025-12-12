@@ -22,6 +22,7 @@ const authStore = useAuthStore(); // Gunakan Store
 const isAuthenticated = computed(() => authStore.isAuthenticated);
 const currentUserAvatar = computed(() => authStore.user?.avatar || defaultAvatar);
 const currentUsername = computed(() => authStore.user?.username || "User");
+const isAdmin = computed(() => authStore.user?.role === 'admin');
 // Ambil kontrol modal dari store juga (atau lokal jika mau simple)
 // Disini saya mapping ke store agar sinkron dengan router guard
 const showLoginModal = computed({
@@ -223,7 +224,7 @@ onUnmounted(() => {
             
             <div v-if="isUserOpen" class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-xl z-20 py-1">
               <RouterLink to="/user/profile" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50"> My Profile </RouterLink>
-              <RouterLink to="/admin/dashboard" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50"> My Dashboard </RouterLink>
+              <RouterLink v-if="isAdmin" to="/admin/dashboard" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50"> My Dashboard </RouterLink>
               <a href="#" @click.prevent="handleLogout" class="w-full text-left block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50"> Sign Out </a>
             </div>
           </div>
