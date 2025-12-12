@@ -1,22 +1,18 @@
 <script setup>
-import { ref, computed, reactive } from 'vue'
-import Sidebar from '@/components/Sidebar.vue' // Pastikan path ini benar
-import DefaultAvatar from '@/asset/images/user_profile/default-avatar.png' // Import avatar default
+import { ref, computed, onMounted, onUpdated } from 'vue'
+import AOS from "aos";
+import "aos/dist/aos.css";
+
+// Import Gambar Dummy
 import Vans from "@/asset/images/Vans.png";
 import NikeShadow from "@/asset/images/NikeShadow.png";
 import NewBalance from "@/asset/images/NewBalance.png";
-// Data reaktif untuk informasi pengguna yang akan dikirim ke Sidebar
-const userProfile = reactive({
-  username: 'FIKY KNJT',
-  email: 'fkyknjt@gmail.com',
-  image: DefaultAvatar,
-})
 
-// Data reaktif untuk item di keranjang. Anda bisa menggantinya dengan data dari API.
+// Data Dummy Cart
 const cartItems = ref([
   {
     id: 1,
-    name: 'Nike Air Shadow 2.0',
+    name: 'Nike Air Shadow 2.0 White',
     size: 'Large',
     color: 'White',
     price: 1450000,
@@ -25,7 +21,7 @@ const cartItems = ref([
   },
   {
     id: 2,
-    name: 'Vans Old Skool',
+    name: 'Vans Old Skool Classic Red',
     size: 'Medium',
     color: 'Red',
     price: 1800000,
@@ -34,7 +30,7 @@ const cartItems = ref([
   },
   {
     id: 3,
-    name: 'New Balance 574',
+    name: 'New Balance 574 Core',
     size: 'Large',
     color: 'Blue',
     price: 2400000,
@@ -43,131 +39,163 @@ const cartItems = ref([
   }
 ])
 
-// Fungsi untuk menambah kuantitas item
+// Logic Cart
 const increaseQuantity = (item) => {
   item.quantity++
 }
 
-// Fungsi untuk mengurangi kuantitas item, dengan batas minimal 1
 const decreaseQuantity = (item) => {
   if (item.quantity > 1) {
     item.quantity--
   }
 }
 
-// Fungsi untuk menghapus item dari keranjang
 const removeItem = (itemId) => {
+  // Hapus item dengan efek visual (tunggu animasi CSS selesai jika ada, tapi AOS handle basic-nya)
   cartItems.value = cartItems.value.filter(item => item.id !== itemId)
+  setTimeout(() => AOS.refresh(), 100); // Refresh posisi elemen lain
 }
 
-// Menghitung total harga secara otomatis menggunakan computed property
 const totalPrice = computed(() => {
   return cartItems.value.reduce((total, item) => total + (item.price * item.quantity), 0)
 })
 
-// Fungsi untuk proses checkout
 const proceedToCheckout = () => {
-  // Tambahkan logika checkout Anda di sini
-  alert(`Checkout dengan total harga: $${totalPrice.value}`)
+  alert(`Checkout dengan total harga: Rp. ${totalPrice.value.toLocaleString()}`)
 }
+
+// Inisialisasi AOS
+onMounted(() => {
+  AOS.init({
+    once: true,
+    duration: 800,
+    easing: "ease-out-cubic", // Easing sedikit berbeda agar terasa lebih "berbobot"
+  });
+});
+
+onUpdated(() => {
+  AOS.refresh();
+});
 </script>
 
 <template>
-  <div class="flex">
-    <!-- Mengirim data pengguna ke Sidebar -->
-    <Sidebar :user="userProfile" />
+  <div class="w-full p-6 md:p-10">
+    <div class="mx-auto max-w-4xl">
+      
+      <div 
+        class="flex items-center justify-between mb-8"
+        data-aos="fade-down"
+        data-aos-delay="100"
+      >
+        <h1 class="text-3xl md:text-4xl font-bold text-gray-800">My Cart</h1>
+        <span class="text-gray-500 text-sm">{{ cartItems.length }} Items</span>
+      </div>
 
-    <!-- Konten Utama Halaman Keranjang -->
-    <main class="w-full p-8 md:p-12">
-      <div class="mx-auto max-w-4xl">
-        <h1 class="text-3xl md:text-4xl font-bold text-gray-800 mb-8">My Cart</h1>
+      <div class="space-y-6">
+        <div
+          v-for="(item, index) in cartItems"
+          :key="item.id"
+          class="flex flex-col sm:flex-row items-center gap-6 p-4 border border-gray-200 rounded-2xl bg-white shadow-sm hover:shadow-md transition-shadow duration-300"
+          
+          data-aos="fade-up"
+          :data-aos-delay="150 + (index * 100)"
+        >
+          <div class="w-28 h-28 flex-shrink-0 bg-gray-50 rounded-xl overflow-hidden">
+            <img
+              :src="item.imageUrl"
+              :alt="item.name"
+              class="h-full w-full object-cover mix-blend-multiply hover:scale-105 transition-transform duration-500"
+            />
+          </div>
 
-        <!-- Daftar Item Keranjang -->
-        <div class="space-y-6">
-          <div
-            v-for="item in cartItems"
-            :key="item.id"
-            class="flex flex-col sm:flex-row items-center gap-6 p-4 border border-gray-200 rounded-xl"
-          >
-            <!-- Gambar Produk -->
-            <div class="w-28 h-28 flex-shrink-0">
-              <img
-                :src="item.imageUrl"
-                :alt="item.name"
-                class="h-full w-full object-cover rounded-lg bg-gray-100"
-              />
+          <div class="flex-grow text-center sm:text-left w-full sm:w-auto">
+            <h2 class="text-lg font-bold text-gray-900 mb-1">{{ item.name }}</h2>
+            <div class="flex items-center justify-center sm:justify-start gap-4 text-sm text-gray-500 mb-2">
+              <span class="bg-gray-100 px-2 py-0.5 rounded text-xs font-medium text-gray-600">Size: {{ item.size }}</span>
+              <span class="flex items-center gap-1">
+                <span class="w-3 h-3 rounded-full border border-gray-300" :style="{ backgroundColor: item.color.toLowerCase() }"></span>
+                {{ item.color }}
+              </span>
             </div>
+            <p class="text-xl font-bold text-blue-700">Rp {{ item.price.toLocaleString('id-ID') }}</p>
+          </div>
 
-            <!-- Detail Produk -->
-            <div class="flex-grow text-center sm:text-left">
-              <h2 class="text-lg font-bold text-gray-900">{{ item.name }}</h2>
-              <p class="text-sm text-gray-500">Size: {{ item.size }}</p>
-              <p class="text-sm text-gray-500">Color: {{ item.color }}</p>
-              <p class="text-xl font-bold text-gray-900 mt-2">Rp.{{ item.price }}</p>
-            </div>
-
-            <!-- Aksi (Kuantitas & Hapus) -->
-            <div class="flex items-center gap-4">
-              <!-- Pengatur Kuantitas -->
-              <div class="flex items-center rounded-full bg-gray-100">
-                <button
-                  @click="decreaseQuantity(item)"
-                  class="px-3 py-1 text-lg font-bold text-gray-600 hover:bg-gray-200 rounded-l-full"
-                >
-                  -
-                </button>
-                <span class="px-4 py-1 font-semibold">{{ item.quantity }}</span>
-                <button
-                  @click="increaseQuantity(item)"
-                  class="px-3 py-1 text-lg font-bold text-gray-600 hover:bg-gray-200 rounded-r-full"
-                >
-                  +
-                </button>
-              </div>
-
-              <!-- Tombol Hapus -->
-              <button @click="removeItem(item.id)" class="text-red-500 hover:text-red-700">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-6 w-6"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                  />
-                </svg>
+          <div class="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto mt-2 sm:mt-0 border-t sm:border-0 pt-4 sm:pt-0 border-gray-100">
+            
+            <div class="flex items-center rounded-full bg-gray-50 border border-gray-200 shadow-sm">
+              <button
+                @click="decreaseQuantity(item)"
+                class="w-8 h-8 flex items-center justify-center text-lg font-bold text-gray-500 hover:text-blue-600 hover:bg-white rounded-full transition-all"
+              >
+                -
+              </button>
+              <span class="w-10 text-center font-semibold text-gray-800">{{ item.quantity }}</span>
+              <button
+                @click="increaseQuantity(item)"
+                class="w-8 h-8 flex items-center justify-center text-lg font-bold text-gray-500 hover:text-blue-600 hover:bg-white rounded-full transition-all"
+              >
+                +
               </button>
             </div>
-          </div>
 
-          <!-- Pesan jika keranjang kosong -->
-          <div v-if="cartItems.length === 0" class="text-center py-10">
-            <p class="text-gray-500">Your cart is empty.</p>
-          </div>
-        </div>
-
-        <!-- Total Harga dan Checkout -->
-        <div v-if="cartItems.length > 0" class="mt-12 flex flex-col items-end gap-6">
-          <div class="pr-2">
-            <p class="text-2xl md:text-xl font-bold text-gray-800">
-              Total Price: Rp.{{ totalPrice }}
-            </p>
-          </div>
-          <div>
-            <button
-              @click="proceedToCheckout"
-              class="w-full sm:w-auto rounded-full bg-blue-700 px-6 py-3 text-md font-bold text-white transition hover:bg-blue-500"
+            <button 
+              @click="removeItem(item.id)" 
+              class="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 rounded-full transition-all"
+              title="Remove Item"
             >
-              Check out now
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
             </button>
           </div>
         </div>
+
+        <div 
+          v-if="cartItems.length === 0" 
+          class="text-center py-20 bg-gray-50 rounded-2xl border border-dashed border-gray-300"
+          data-aos="zoom-in"
+        >
+          <div class="bg-white w-20 h-20 mx-auto rounded-full flex items-center justify-center shadow-sm mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-10 h-10 text-gray-400">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+            </svg>
+          </div>
+          <p class="text-gray-500 text-lg font-medium">Keranjang kamu kosong.</p>
+          <router-link to="/product" class="text-blue-600 font-semibold mt-2 inline-block hover:underline">Mulai Belanja</router-link>
+        </div>
       </div>
-    </main>
+
+      <div 
+        v-if="cartItems.length > 0" 
+        class="mt-10 pt-8 border-t border-gray-100"
+        data-aos="fade-up"
+        data-aos-delay="500"
+        data-aos-offset="10"
+      >
+        <div class="flex flex-col sm:flex-row justify-between items-center gap-6">
+          <div class="text-center sm:text-left">
+             <p class="text-gray-500 text-sm mb-1">Total Pesanan</p>
+             <p class="text-3xl font-extrabold text-gray-900 tracking-tight">
+              Rp {{ totalPrice.toLocaleString('id-ID') }}
+            </p>
+            <p class="text-xs text-gray-400 mt-1">Termasuk pajak (jika ada)</p>
+          </div>
+
+          <button
+            @click="proceedToCheckout"
+            class="w-full sm:w-auto group relative px-8 py-4 bg-gray-900 text-white font-bold rounded-full overflow-hidden shadow-xl shadow-blue-900/20 hover:shadow-2xl hover:shadow-blue-900/40 transition-all duration-300 active:scale-95"
+          >
+            <div class="absolute inset-0 w-full h-full bg-gradient-to-r from-blue-600 to-blue-800 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <span class="relative flex items-center justify-center gap-2">
+              Proceed to Checkout
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4 group-hover:translate-x-1 transition-transform">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+              </svg>
+            </span>
+          </button>
+        </div>
+      </div>
+
+    </div>
   </div>
 </template>

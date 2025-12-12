@@ -1,100 +1,123 @@
 <script setup>
-import defaultAvatar from '@/asset/images/user_profile/default-avatar.png'
+import { useRouter } from 'vue-router';
+import axios from 'axios';
+// Import ikon. Pastikan library lucide-vue-next sudah diinstall
+import { User, Heart, ShoppingCart, Star, LogOut } from 'lucide-vue-next';
+import defaultAvatar from '@/asset/images/user_profile/default-avatar.png';
 
-// Komponen sekarang menerima data pengguna melalui 'props'
-// Ini membuatnya independen dari state management (seperti Pinia/authStore)
+// Menerima data dari UserLayout
 defineProps({
   user: {
     type: Object,
     required: true,
-    // Menyediakan nilai default untuk mencegah error jika prop tidak dikirim
+    // Default placeholder yang netral
     default: () => ({
-      username: 'FIKY KNJT',
-      email: 'fkyknjt@gmail.com',
+      username: 'Loading...', 
+      email: '',
       image: defaultAvatar,
     })
   }
-})
+});
 
+const router = useRouter();
+const API_URL = "http://localhost:3000/api/auth";
 
+// 1. Handle jika gambar rusak/error
+const handleImageError = (e) => {
+  e.target.src = defaultAvatar;
+};
+
+// 2. Fungsi Logout
+const handleLogout = async () => {
+  const confirmLogout = confirm("Apakah Anda yakin ingin keluar?");
+  if (!confirmLogout) return;
+
+  try {
+    await axios.post(`${API_URL}/logout`);
+    // Redirect ke Home
+    router.push('/');
+    // Refresh agar state bersih
+    setTimeout(() => {
+      window.location.reload();
+    }, 100);
+  } catch (error) {
+    console.error("Gagal logout:", error);
+    alert("Gagal logout.");
+  }
+};
 </script>
 
 <template>
-  <aside class="hidden lg:block min-w-56 xl:min-w-70 min-h-screen border-r border-gray-300 p-6">
-    <div class="flex flex-col gap-6">
-      <!-- Info Pengguna, sekarang menggunakan data dari 'props' -->
-      <div class="gap-2 flex flex-col xl:flex-row items-center">
+  <aside class="hidden lg:flex flex-col min-w-64 border-r border-gray-200 bg-white min-h-[calc(100vh-100px)] p-6 rounded-l-xl">
+    
+    <div class="flex-1">
+      
+      <div class="flex items-center gap-3 mb-8 pb-8 border-b border-gray-100">
         <img
-          v-if="user.image"
-          :src="user.image"
-          alt="User Profile"
-          class="size-12 object-cover rounded-full border-2 border-blue-700"
+          :src="user.image || defaultAvatar"
+          alt="Profile"
+          class="w-12 h-12 rounded-full object-cover border-2 border-blue-600"
+          @error="handleImageError"
+          referrerpolicy="no-referrer"
         />
-        <img
-          v-else
-          :src="defaultAvatar"
-          alt="Default Profile"
-          class="size-12 rounded-full border-2 border-neu-200 object-cover"
-        />
-        <div class="flex flex-col items-center xl:items-start gap-[2px]">
-          <p class="font-medium whitespace-nowrap text-xs md:text-sm">
+        <div class="overflow-hidden">
+          <p class="font-bold text-gray-800 truncate text-sm" :title="user.username">
             {{ user.username }}
           </p>
-          <p class="text-sm text-neu-500">{{ user.email }}</p>
+          <p class="text-xs text-gray-500 truncate" :title="user.email">
+            {{ user.email }}
+          </p>
         </div>
       </div>
 
-      <!-- Tautan Navigasi (tidak ada perubahan di sini) -->
-      <ul class="flex flex-col gap-6">
-        <li>
-          <RouterLink
-            :to="{ name: 'Profile' }"
-            class="flex gap-3 items-center py-2.5 px-2 font-medium hover:bg-blue-300 transition-all duration-50 rounded-xl"
-            :class="$route.path.startsWith('/user/profile') ? 'bg-blue-300 text-pr-500' : ''"
-          >
-            <User
-              class="size-5"
-              :class="$route.path.startsWith('/user/profile') ? ' text-pr-500' : 'text-neu-500'"
-            />Profile
-          </RouterLink>
-        </li>
-        <li>
-          <RouterLink
-            :to="{ name: 'Wishlist' }"
-            class="flex gap-3 items-center py-2.5 px-2 font-medium hover:bg-blue-300 transition-all duration-50 rounded-xl"
-            :class="$route.path.startsWith('/user/wishlist') ? 'bg-blue-300 text-pr-500' : ''"
-          >
-            <Heart
-              class="size-5"
-              :class="$route.path.startsWith('/user/wishlist') ? ' text-pr-500' : 'text-neu-500'"
-            />Wishlist
-          </RouterLink>
-        </li>
-        <li>
-          <RouterLink
-            :to="{ name: 'Cart' }"
-            class="flex gap-3 items-center py-2.5 px-2 font-medium hover:bg-blue-300 transition-all duration-50 rounded-xl"
-            :class="$route.path.startsWith('/user/cart') ? 'bg-blue-300 text-pr-500' : ''"
-          >
-            <ShoppingCart
-              class="size-5"
-              :class="$route.path.startsWith('/user/cart') ? ' text-pr-500' : 'text-neu-500'"
-            />Cart
-          </RouterLink>
-        </li>
-        <li>
-          <RouterLink
-            :to="{ name: 'Review' }"
-            class="flex gap-3 items-center py-2.5 px-2 font-medium hover:bg-blue-300 transition-all duration-50 rounded-xl"
-            :class="$route.path.startsWith('/user/review') ? 'bg-blue-300 text-pr-500' : ''"
-          >
-            <Star
-              class="size-5"
-              :class="$route.path.startsWith('/user/review') ? ' text-pr-500' : 'text-neu-500'"
-            />Review
-          </RouterLink>
-        </li>
-      </ul>
+      <nav class="space-y-2">
+        <RouterLink 
+          :to="{ name: 'Profile' }" 
+          class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group"
+          :class="$route.path.includes('/user/profile') ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-600 hover:bg-gray-50'"
+        >
+          <User class="w-5 h-5" />
+          <span>My Profile</span>
+        </RouterLink>
+
+        <RouterLink 
+          :to="{ name: 'Wishlist' }" 
+          class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group"
+          :class="$route.path.includes('/user/wishlist') ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-600 hover:bg-gray-50'"
+        >
+          <Heart class="w-5 h-5" />
+          <span>Wishlist</span>
+        </RouterLink>
+
+        <RouterLink 
+          :to="{ name: 'Cart' }" 
+          class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group"
+          :class="$route.path.includes('/user/cart') ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-600 hover:bg-gray-50'"
+        >
+          <ShoppingCart class="w-5 h-5" />
+          <span>My Cart</span>
+        </RouterLink>
+
+        <RouterLink 
+          :to="{ name: 'Review' }" 
+          class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group"
+          :class="$route.path.includes('/user/review') ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-600 hover:bg-gray-50'"
+        >
+          <Star class="w-5 h-5" />
+          <span>My Reviews</span>
+        </RouterLink>
+      </nav>
     </div>
+
+    <!-- <div class="mt-auto pt-6 border-t border-gray-100">
+      <button 
+        @click="handleLogout"
+        class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 hover:bg-red-50 transition-all duration-200"
+      >
+        <LogOut class="w-5 h-5" />
+        <span class="font-medium">Sign Out</span>
+      </button>
+    </div> -->
+
   </aside>
 </template>

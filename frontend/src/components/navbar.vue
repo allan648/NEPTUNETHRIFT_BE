@@ -1,49 +1,69 @@
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from "vue";
-import { RouterLink, useRoute, useRouter } from "vue-router"; // 1. Import useRouter
+import { ref, onMounted, onUnmounted, nextTick, computed } from "vue";
+import { RouterLink, useRoute, useRouter } from "vue-router";
 import axios from 'axios';
-// Import LoginModal
-import LoginModal from "@/components/auth/LoginModal.vue";
+// Import Store
+import { useAuthStore } from '@/stores/authStore';
 
+// Import Komponen & Aset
+import LoginModal from "@/components/auth/LoginModal.vue";
 import defaultAvatar from "@/asset/images/user_profile/default-avatar.png";
 import logofootwear from "@/asset/images/Footwear.png";
 import cartIcon from "@/asset/images/icons/cart.png";
 import EnvelopeIcon from "@/asset/images/icons/envelope.png";
 
-// --- SIMULASI STATUS LOGIN ---
-axios.defaults.withCredentials = true;
-const isAuthenticated = ref(false); // false = belum login
-const API_URL = "http://localhost:3000/api/auth";
-// State untuk modal login
-const showLoginModal = ref(false);
+// --- INISIALISASI ---
+const route = useRoute();
+const router = useRouter();
+const authStore = useAuthStore(); // Gunakan Store
 
+// --- STATE DARI STORE (COMPUTED) ---
+// Gunakan computed agar reaktif mengikuti perubahan di store
+const isAuthenticated = computed(() => authStore.isAuthenticated);
+const currentUserAvatar = computed(() => authStore.user?.avatar || defaultAvatar);
+const currentUsername = computed(() => authStore.user?.username || "User");
+// Ambil kontrol modal dari store juga (atau lokal jika mau simple)
+// Disini saya mapping ke store agar sinkron dengan router guard
+const showLoginModal = computed({
+  get: () => authStore.showLoginModal,
+  set: (val) => val ? authStore.openLoginModal() : authStore.closeLoginModal()
+});
+
+// --- STATE LOKAL NAVBAR ---
 const isSticky = ref(false);
 const isSidebarOpen = ref(false);
 const isUserOpen = ref(false);
 const navbarRef = ref(null);
 const navHeight = ref(0);
-const route = useRoute();
-const router = useRouter(); // 2. Inisialisasi router
-// 3. State untuk search bar
 const searchTerm = ref("");
-const currentUserAvatar = ref(defaultAvatar);
-// 4. Fungsi untuk menangani pencarian
+
+// --- FUNGSI PROTEKSI NAVIGASI (PENTING) ---
+const handleProtectedNav = (path) => {
+  if (isAuthenticated.value) {
+    // Jika login, pindah halaman
+    router.push(path);
+  } else {
+    // Jika belum, buka modal
+    authStore.openLoginModal();
+  }
+};
+
+// --- FUNGSI LAINNYA ---
 const handleSearch = () => {
-  if (!searchTerm.value.trim()) return; // Jangan cari jika kosong
+  if (!searchTerm.value.trim()) return;
   router.push({ path: '/product', query: { search: searchTerm.value } });
 };
 
 const toggleUserDropdown = () => {
   isUserOpen.value = !isUserOpen.value;
 };
+
 const toggleSidebar = () => {
   isSidebarOpen.value = !isSidebarOpen.value;
 };
 
-// 5. Modifikasi handleScroll untuk memicu search bar
 const handleScroll = () => {
   if (navbarRef.value) {
-    // Tampilkan search bar setelah scroll lebih dari 80px
     isSticky.value = window.scrollY > 80;
   }
 };
@@ -54,14 +74,26 @@ const closeOnClickOutside = (event) => {
   }
 };
 
-onMounted(async () => { // Tambahkan async di sini
-  // 1. Panggil fungsi cek login SEGERA saat navbar dimuat
-  await checkAuthStatus();
+const handleLogout = async () => {
+    const confirmLogout = confirm("Apakah Anda yakin ingin keluar?");
+    if (!confirmLogout) return;
+    
+    // Panggil logout dari store (karena store yang handle redirect & clear state)
+    await authStore.logout();
+    isUserOpen.value = false;
+};
+
+// --- LIFECYCLE HOOKS ---
+onMounted(async () => {
+  // Cek status login saat navbar dimuat
+  await authStore.checkAuth();
+  
   nextTick(() => {
     if (navbarRef.value) {
       navHeight.value = navbarRef.value.offsetHeight;
     }
   });
+  
   window.addEventListener("scroll", handleScroll);
   window.addEventListener("click", closeOnClickOutside);
 });
@@ -70,44 +102,11 @@ onUnmounted(() => {
   window.removeEventListener("scroll", handleScroll);
   window.removeEventListener("click", closeOnClickOutside);
 });
-
-const handleLogout = async () => {
-    try {
-        await axios.post(`${API_URL}/logout`);
-        // Setelah logout berhasil
-        isAuthenticated.value = false; // Set status login false
-        isUserOpen.value = false; // Tutup dropdown
-        alert("Anda berhasil logout.");
-    } catch (error) {
-        console.error("Logout failed:", error);
-        alert("Gagal logout. Coba lagi.");
-    }
-};
-
-const checkAuthStatus = async () => {
-    try {
-        const response = await axios.get(`${API_URL}/status`);
-        isAuthenticated.value = response.data.isAuthenticated;
-
-        // LOGIKA BARU: Cek apakah ada avatar dari backend
-        if (response.data.isAuthenticated && response.data.avatar) {
-            currentUserAvatar.value = response.data.avatar;
-        } else {
-            // Jika tidak ada avatar (atau user login biasa tanpa foto), pakai default
-            currentUserAvatar.value = defaultAvatar;
-        }
-    } catch (error) {
-        console.error("Error checking auth status:", error);
-        isAuthenticated.value = false;
-    }
-}
 </script>
 
 <template>
-  <!-- Placeholder untuk mencegah konten melompat saat navbar menjadi sticky -->
   <div v-if="isSticky" :style="{ height: navHeight + 'px' }"></div>
 
-  <!-- Navigasi Utama -->
   <nav
     ref="navbarRef"
     class="w-full transition-all duration-300 z-50"
@@ -117,7 +116,7 @@ const checkAuthStatus = async () => {
     }"
   >
     <div class="container mx-auto flex justify-between items-center px-6 py-3">
-      <!-- Logo + Brand -->
+      
       <RouterLink to="/" class="flex items-center space-x-2">
         <img :src="logofootwear" alt="Logo" class="h-8 w-8" />
         <span class="font-extrabold text-xl">
@@ -125,14 +124,9 @@ const checkAuthStatus = async () => {
         </span>
       </RouterLink>
 
-      <!-- PERUBAHAN DI SINI: Bagian Tengah (Search Bar DAN Menu) -->
       <div class="hidden md:flex flex-grow items-center justify-center px-8 space-x-12">
-        <!-- Search Bar (Hanya muncul saat sticky) -->
-        <form
-          v-if="isSticky"
-          @submit.prevent="handleSearch"
-          class="w-full max-w-md"
-        >
+        
+        <form v-if="isSticky" @submit.prevent="handleSearch" class="w-full max-w-md">
           <div class="relative">
             <input
               type="text"
@@ -148,7 +142,6 @@ const checkAuthStatus = async () => {
           </div>
         </form>
 
-        <!-- Menu Tengah (Sekarang selalu tampil di desktop) -->
         <ul class="flex items-center space-x-12">
            <li class="group flex flex-col items-center">
             <RouterLink
@@ -160,10 +153,7 @@ const checkAuthStatus = async () => {
             </RouterLink>
             <span
               class="mt-1 h-0.5 bg-blue-500 rounded-full transition-all duration-400 ease-out"
-              :class="{
-                'w-8': route.path === '/product',
-                'w-0 group-hover:w-8': route.path !== '/product',
-              }"
+              :class="route.path === '/product' ? 'w-8' : 'w-0 group-hover:w-8'"
             ></span>
           </li>
           <li class="group flex flex-col items-center">
@@ -176,10 +166,7 @@ const checkAuthStatus = async () => {
             </RouterLink>
             <span
               class="mt-1 h-0.5 bg-blue-500 rounded-full transition-all duration-400 ease-out"
-              :class="{
-                'w-8': route.path === '/promo',
-                'w-0 group-hover:w-8': route.path !== '/promo',
-              }"
+              :class="route.path === '/promo' ? 'w-8' : 'w-0 group-hover:w-8'"
             ></span>
           </li>
           <li class="group flex flex-col items-center">
@@ -192,16 +179,12 @@ const checkAuthStatus = async () => {
             </RouterLink>
             <span
               class="mt-1 h-0.5 bg-blue-500 rounded-full transition-all duration-400 ease-out"
-              :class="{
-                'w-8': route.path === '/about',
-                'w-0 group-hover:w-8': route.path !== '/about',
-              }"
+              :class="route.path === '/about' ? 'w-8' : 'w-0 group-hover:w-8'"
             ></span>
           </li>
         </ul>
       </div>
 
-      <!-- Ikon Hamburger (Mobile) -->
       <div class="md:hidden">
         <button @click="toggleSidebar" aria-label="Toggle sidebar">
           <svg class="h-6 w-6 text-blue-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -210,49 +193,43 @@ const checkAuthStatus = async () => {
         </button>
       </div>
 
-      <!-- GRUP KANAN: Keranjang + Akun (Desktop) -->
       <div class="hidden md:flex items-center space-x-10">
-        <!-- Ikon Keranjang Belanja -->
-        <div class="group flex flex-col items-center">
-          <RouterLink to="/user/cart" aria-label="View Shopping Cart">
+        
+        <div class="group flex flex-col items-center cursor-pointer">
+          <a @click.prevent="handleProtectedNav('/user/cart')" aria-label="View Shopping Cart">
             <img :src="cartIcon" alt="Shopping Cart" class="h-10 w-10 transition-transform duration-300 group-hover:scale-110" />
-          </RouterLink>
+          </a>
           <span
             class="mt-1 h-0.5 bg-blue-500 rounded-full transition-all duration-400 ease-out"
-            :class="{
-              'w-8': route.path === '/user/cart',
-              'w-0 group-hover:w-8': route.path !== '/user/cart',
-            }"
+            :class="route.path === '/user/cart' ? 'w-8' : 'w-0 group-hover:w-8'"
           ></span>
         </div>
 
-        <div class="group flex flex-col items-center">
-          <RouterLink to="/myorder" aria-label="View My Orders">
+        <div class="group flex flex-col items-center cursor-pointer">
+          <a @click.prevent="handleProtectedNav('/myorder')" aria-label="View My Orders">
             <img :src="EnvelopeIcon" alt="Notification" class=" mt-1 h-8 w-8 transition-transform duration-300 group-hover:scale-110" />
-          </RouterLink>
+          </a>
           <span
             class="mt-1 h-0.5 bg-blue-500 rounded-full transition-all duration-400 ease-out"
-            :class="{
-              'w-8': route.path === '/myorder',
-              'w-0 group-hover:w-8': route.path !== '/myorder',
-            }"
+            :class="route.path === '/myorder' ? 'w-8' : 'w-0 group-hover:w-8'"
           ></span>
         </div>
 
-        <!-- Avatar/User -->
         <div>
           <div v-if="isAuthenticated" class="relative user-dropdown">
             <button @click="toggleUserDropdown" class="focus:outline-none block">
               <img :src="currentUserAvatar" alt="User" class="h-10 w-10 rounded-full object-cover border-2 border-transparent transition-all hover:border-blue-500 hover:scale-105" />
             </button>
+            
             <div v-if="isUserOpen" class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-xl z-20 py-1">
               <RouterLink to="/user/profile" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50"> My Profile </RouterLink>
               <RouterLink to="/admin/dashboard" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50"> My Dashboard </RouterLink>
-              <a href="#" @click.prevent="handleLogout()" class="w-full text-left block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50"> Sign Out </a>
+              <a href="#" @click.prevent="handleLogout" class="w-full text-left block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50"> Sign Out </a>
             </div>
           </div>
+          
           <div v-else>
-            <button @click="showLoginModal = true" class="flex items-center gap-2 font-medium text-white bg-blue-700 hover:bg-blue-600 px-4 py-2 rounded-full transition-colors">
+            <button @click="authStore.openLoginModal()" class="flex items-center gap-2 font-medium text-white bg-blue-700 hover:bg-blue-600 px-4 py-2 rounded-full transition-colors">
               <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
                 <path fill-rule="evenodd" d="M7.5 3.75A1.5 1.5 0 006 5.25v13.5a1.5 1.5 0 001.5 1.5h6a1.5 1.5 0 001.5-1.5V15a.75.75 0 011.5 0v3.75a3 3 0 01-3 3h-6a3 3 0 01-3-3V5.25a3 3 0 013-3h6a3 3 0 013 3V9A.75.75 0 0115 9V5.25a1.5 1.5 0 00-1.5-1.5h-6zm10.72 4.72a.75.75 0 011.06 0l3 3a.75.75 0 010 1.06l-3 3a.75.75 0 11-1.06-1.06l1.72-1.72H9a.75.75 0 010-1.5h10.94l-1.72-1.72a.75.75 0 010-1.06z" clip-rule="evenodd" />
               </svg>
@@ -264,58 +241,74 @@ const checkAuthStatus = async () => {
     </div>
   </nav>
 
-  <!-- Sidebar (Mobile) -->
   <div
     v-if="isSidebarOpen"
-    class="fixed inset-0 bg-black bg-opacity-50 z-50 md:hidden"
+    class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] md:hidden"
     @click="isSidebarOpen = false"
   ></div>
+
   <aside
-    class="fixed top-0 left-0 w-64 h-full bg-white z-60 transform transition-transform duration-300 ease-in-out md:hidden"
+    class="fixed top-0 left-0 w-[280px] h-full bg-white z-[70] shadow-2xl transform transition-transform duration-300 ease-in-out md:hidden flex flex-col"
     :class="isSidebarOpen ? 'translate-x-0' : '-translate-x-full'"
   >
-    <div class="p-4">
-       <div class="flex justify-between items-center mb-8">
-        <span class="font-extrabold text-lg"><span class="text-blue-700">NEPTUNE</span>THRIFT</span>
-        <button @click="isSidebarOpen = false">
-          <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
+    <div class="p-6 flex justify-between items-center border-b border-gray-100">
+      <span class="font-extrabold text-xl tracking-tight">
+        <span class="text-blue-700">NEPTUNE</span>THRIFT
+      </span>
+      <button @click="isSidebarOpen = false" class="p-2 rounded-full hover:bg-gray-100 transition-colors">
+        <svg class="h-6 w-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+
+    <div class="flex-1 overflow-y-auto p-4">
+      <nav class="flex flex-col space-y-2">
+        <RouterLink to="/product" @click="isSidebarOpen = false" class="flex items-center gap-4 px-4 py-3 rounded-xl text-gray-700 font-medium hover:bg-blue-50 hover:text-blue-700 transition-all">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+          Product
+        </RouterLink>
+        <RouterLink to="/promo" @click="isSidebarOpen = false" class="flex items-center gap-4 px-4 py-3 rounded-xl text-gray-700 font-medium hover:bg-blue-50 hover:text-blue-700 transition-all">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+          Promo
+        </RouterLink>
+        <RouterLink to="/about" @click="isSidebarOpen = false" class="flex items-center gap-4 px-4 py-3 rounded-xl text-gray-700 font-medium hover:bg-blue-50 hover:text-blue-700 transition-all">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          About
+        </RouterLink>
+        
+        <a @click.prevent="handleProtectedNav('/user/cart'); isSidebarOpen = false" class="flex items-center gap-4 px-4 py-3 rounded-xl text-gray-700 font-medium hover:bg-blue-50 hover:text-blue-700 transition-all cursor-pointer">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+          Cart
+        </a>
+      </nav>
+    </div>
+
+    <div class="p-4 border-t border-gray-100 bg-gray-50">
+      <div v-if="isAuthenticated" class="flex flex-col gap-2">
+        <RouterLink to="/user/profile" @click="isSidebarOpen = false" class="flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-gray-200 text-gray-700 font-medium hover:border-blue-300 hover:text-blue-700 transition-all">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+          My Profile
+        </RouterLink>
+        <button @click="handleLogout" class="flex items-center gap-3 px-4 py-3 rounded-xl text-red-600 font-medium hover:bg-red-50 transition-all w-full text-left">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+          Sign Out
         </button>
       </div>
-      <nav class="flex flex-col space-y-4">
-        <RouterLink to="/product" @click="isSidebarOpen = false" class="font-medium text-blue-700 hover:text-blue-500 text-lg">Product</RouterLink>
-        <RouterLink to="/promo" @click="isSidebarOpen = false" class="font-medium text-blue-700 hover:text-blue-500 text-lg">Promo</RouterLink>
-        <RouterLink to="/about" @click="isSidebarOpen = false" class="font-medium text-blue-700 hover:text-blue-500 text-lg">About</RouterLink>
-        <RouterLink to="/user/cart" @click="isSidebarOpen = false" class="flex items-center gap-3 font-medium text-blue-700 hover:text-blue-500 text-lg">
-          <img :src="cartIcon" alt="Cart" class="h-6 w-6" />
-          <span>Cart</span>
-        </RouterLink>
-        <hr class="my-4" />
-        <div v-if="isAuthenticated" class="space-y-4">
-          <RouterLink to="/user/profile" @click="isSidebarOpen = false" class="font-medium text-blue-700 hover:text-blue-500 text-lg">My Profile</RouterLink>
-          <a href="#" @click.prevent="handleLogout(); isSidebarOpen = false;" class="font-medium text-blue-700 hover:text-blue-500 text-lg">Sign Out</a>
-        </div>
-        <div v-else>
-          <button @click="showLoginModal = true; isSidebarOpen = false" class="w-full flex items-center justify-center gap-2 font-medium text-white bg-blue-700 hover:bg-blue-600 px-4 py-2 rounded-full transition-colors">
-             <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                <path fill-rule="evenodd" d="M7.5 3.75A1.5 1.5 0 006 5.25v13.5a1.5 1.5 0 001.5 1.5h6a1.5 1.5 0 001.5-1.5V15a.75.75 0 011.5 0v3.75a3 3 0 01-3 3h-6a3 3 0 01-3-3V5.25a3 3 0 013-3h6a3 3 0 013 3V9A.75.75 0 0115 9V5.25a1.5 1.5 0 00-1.5-1.5h-6zm10.72 4.72a.75.75 0 011.06 0l3 3a.75.75 0 010 1.06l-3 3a.75.75 0 11-1.06-1.06l1.72-1.72H9a.75.75 0 010-1.5h10.94l-1.72-1.72a.75.75 0 010-1.06z" clip-rule="evenodd" />
-              </svg>
-            Sign In
-          </button>
-        </div>
-      </nav>
+      <div v-else>
+        <button @click="authStore.openLoginModal(); isSidebarOpen = false" class="w-full flex items-center justify-center gap-2 font-bold text-white bg-blue-700 hover:bg-blue-800 py-3 rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95">
+           <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+              <path fill-rule="evenodd" d="M7.5 3.75A1.5 1.5 0 006 5.25v13.5a1.5 1.5 0 001.5 1.5h6a1.5 1.5 0 001.5-1.5V15a.75.75 0 011.5 0v3.75a3 3 0 01-3 3h-6a3 3 0 01-3-3V5.25a3 3 0 013-3h6a3 3 0 013 3V9A.75.75 0 0115 9V5.25a1.5 1.5 0 00-1.5-1.5h-6zm10.72 4.72a.75.75 0 011.06 0l3 3a.75.75 0 010 1.06l-3 3a.75.75 0 11-1.06-1.06l1.72-1.72H9a.75.75 0 010-1.5h10.94l-1.72-1.72a.75.75 0 010-1.06z" clip-rule="evenodd" />
+            </svg>
+            Sign In / Register
+        </button>
+      </div>
     </div>
   </aside>
 
-  <!-- Tambahkan LoginModal di akhir template -->
   <LoginModal
     :show="showLoginModal"
-    @close="showLoginModal = false"
-    @login-success="(data) => {
-      console.log('Login success:', data);
-      isAuthenticated = true;   // Set status login true
-      showLoginModal = false;    // Tutup modal
-    }"
+    @close="authStore.closeLoginModal()"
+    @login-success="authStore.checkAuth()"
   />
 </template>

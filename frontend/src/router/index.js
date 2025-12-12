@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
+import { useAuthStore } from "@/stores/authStore";
 // layouts
 import AppLayout from "@/layouts/AppLayout.vue";
 import AdminLayout from "@/layouts/AdminLayout.vue";
@@ -6,6 +7,7 @@ import Accounts from "@/pages/admin/accounts/Accounts.vue";
 import Products from "@/pages/admin/products/Products.vue";
 import Transactions from "@/pages/admin/transactions/Transactions.vue";
 import Status from "@/pages/admin/status/Status.vue";
+import UserLayout from "@/layouts/UserLayout.vue";
 // Pages
 import Home from "@/pages/Home.vue";
 import ProductPage from "@/pages/Product.vue";
@@ -74,13 +76,32 @@ const router = createRouter({
           name: "MyOrder",
           component: Myorder,
         },
-        {
-          path: "/user",
+        
+          {
+          path: 'user', // URL: /user
+          component: UserLayout,  // <--- PENTING! Ini wadah Sidebar-nya
+          meta: { requiresAuth: true },
           children: [
-            { path: "profile", name: "Profile", component: Profile },
-            { path: "cart", name: "Cart", component: Cart },
-            { path: "wishlist", name: "Wishlist", component: Wishlist },
-            { path: "review", name: "Review", component: Review },
+            { 
+              path: 'profile', // URL: /user/profile
+              name: 'Profile', 
+              component: Profile 
+            },
+            { 
+              path: 'cart', // URL: /user/cart
+              name: 'Cart', 
+              component: Cart 
+            },
+            { 
+              path: 'wishlist', // URL: /user/wishlist
+              name: 'Wishlist', 
+              component: Wishlist 
+            },
+            { 
+              path: 'review', // URL: /user/review
+              name: 'Review', 
+              component: Review 
+            },
           ],
         },
       ],
@@ -157,7 +178,31 @@ const router = createRouter({
         },
       ],
     },
+    
   ],
 });
+
+router.beforeEach(async (to, from, next) => {
+  const authStore = useAuthStore()
+
+  // 1. Cek status login ke backend setiap kali pindah halaman
+  // (Agar saat di-refresh, status login tetap terbaca)
+  await authStore.checkAuth()
+
+  // 2. Jika halaman tujuan butuh login (ada meta requiresAuth) 
+  // DAN user ternyata belum login (!isAuthenticated)
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+    
+    // A. Buka Modal Login
+    authStore.openLoginModal()
+    
+    // B. Redirect paksa ke Halaman Utama (Dashboard)
+    next('/') 
+    
+  } else {
+    // Jika tidak butuh login ATAU sudah login, silakan lewat
+    next()
+  }
+})
 
 export default router;
