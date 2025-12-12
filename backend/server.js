@@ -176,7 +176,7 @@ app.post("/api/auth/signup", async (req, res) => {
 
         // 4. Insert user baru
         await db.query(
-            "INSERT INTO users (email, password) VALUES (?, ?)",
+            "INSERT INTO users (email, password, createdAt, updatedAt) VALUES (?, ?, NOW(), NOW())",
             [email, hashedPassword]
         );
 
