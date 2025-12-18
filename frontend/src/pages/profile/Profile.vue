@@ -4,17 +4,17 @@ import axios from "axios";
 import AOS from "aos";
 import "aos/dist/aos.css";
 
-// Konfigurasi Axios
 const API_URL = "http://localhost:3000/api";
 axios.defaults.withCredentials = true;
 
-// State Form
 const profile = reactive({
   username: "",
   email: "",
   phone: "",
   address: "",
-  image: null,
+  image: null,     // Untuk preview di layar
+  imageFile: null, // TAMBAHAN: Untuk menyimpan file mentah yang akan dikirim
+  isGoogle: false,
 });
 
 const passwords = reactive({
@@ -32,26 +32,57 @@ const fetchUserProfile = async () => {
     if (response.data.isAuthenticated) {
       profile.username = response.data.username || "";
       profile.email = response.data.email || "";
+      // Data phone dan address sekarang pasti muncul karena backend sudah diperbaiki
       profile.phone = response.data.phone || "";
       profile.address = response.data.address || "";
       profile.image = response.data.avatar || null;
+      profile.isGoogle = response.data.isGoogle || false;
     }
   } catch (error) {
     console.error("Gagal load profile:", error);
   }
 };
 
-// Simpan Profil
+// Handle Ganti Foto (Preview & Simpan File)
+const changePhoto = (event) => {
+  const file = event.target.files[0];
+  if (file) {
+    // 1. Simpan file asli ke state untuk dikirim nanti
+    profile.imageFile = file;
+    // 2. Buat preview agar user bisa lihat sebelum save
+    profile.image = URL.createObjectURL(file);
+  }
+};
+
+// Simpan Profil (Pakai FormData)
 const saveProfileSettings = async () => {
   isLoading.value = true;
   try {
-    await axios.put(`${API_URL}/user/profile`, {
-      username: profile.username,
-      phone: profile.phone,
-      address: profile.address,
+    // KITA WAJIB PAKAI FORMDATA KARENA ADA FILE GAMBAR
+    const formData = new FormData();
+    formData.append('username', profile.username);
+    formData.append('phone', profile.phone);
+    formData.append('address', profile.address);
+    
+    // Hanya kirim avatar jika user mengupload gambar baru
+    if (profile.imageFile) {
+      formData.append('avatar', profile.imageFile);
+    }
+
+    const response = await axios.put(`${API_URL}/user/profile`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
     });
 
     alert("Profil berhasil diperbarui!");
+    
+    // Update state image jika ada balasan avatar baru dari server
+    if (response.data.newAvatar) {
+        profile.image = response.data.newAvatar;
+    }
+
+    // Reload halaman agar segar
     setTimeout(() => {
       window.location.reload();
     }, 500);
@@ -65,36 +96,24 @@ const saveProfileSettings = async () => {
 };
 
 const changePassword = async () => {
+  // ... (kode password tetap sama) ...
   if (passwords.new !== passwords.confirm) {
     alert("Konfirmasi password baru tidak cocok!");
     return;
   }
-  alert("Fitur ganti password akan berfungsi setelah backend disiapkan.");
+  // TODO: Sambungkan ke endpoint change-password backend
+  alert("Fitur ganti password belum disambungkan ke API.");
 };
 
-const changePhoto = (event) => {
-  const file = event.target.files[0];
-  if (file) {
-    profile.image = URL.createObjectURL(file);
-    alert("Fitur upload foto butuh setup backend tambahan.");
-  }
-};
-
-// Inisialisasi Animasi AOS
 onMounted(() => {
   fetchUserProfile();
-  AOS.init({
-    once: true,
-    duration: 1000, // Durasi sedikit lebih lambat agar elegan
-    easing: "ease-out-quart", // Easing yang sangat halus (decelerating)
-  });
+  AOS.init({ once: true, duration: 1000, easing: "ease-out-quart" });
 });
 
 onUpdated(() => {
   AOS.refresh();
 });
 </script>
-
 <template>
   <div class="w-full p-6 md:p-10">
     <div class="mx-auto max-w-4xl">
@@ -171,8 +190,12 @@ onUpdated(() => {
               <input
                 v-model="profile.username"
                 type="text"
+                :disabled="profile.isGoogle"
                 class="block w-full rounded-xl border-gray-300 px-4 py-3.5 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all duration-300 hover:border-blue-300"
               />
+              <p v-if="profile.isGoogle" class="mt-1 text-xs text-gray-500 italic">
+                *Nama akun Google tidak dapat diubah.
+              </p>
             </div>
 
             <div class="group">

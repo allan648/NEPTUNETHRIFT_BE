@@ -55,7 +55,7 @@ const logout = (req, res) => {
 const getStatus = async (req, res) => {
     if (req.session.userId) {
         try {
-            const [rows] = await db.query("SELECT avatar, username, email, role FROM users WHERE id = ?", [req.session.userId]);
+            const [rows] = await db.query("SELECT avatar, username, email, phone, address, role, is_google FROM users WHERE id = ?", [req.session.userId]);
             const user = rows[0];
             res.json({
                 isAuthenticated: true,
@@ -63,7 +63,10 @@ const getStatus = async (req, res) => {
                 avatar: user ? user.avatar : null,
                 username: user ? user.username : "User",
                 email: user ? user.email : "",
-                role: user ? user.role : "customer"
+                phone: user ? user.phone : "", 
+                address: user ? user.address : "",
+                role: user ? user.role : "customer",
+                isGoogle: user ? (user.is_google === 1) : false
             });
         } catch (error) {
             res.json({ isAuthenticated: true, role: "customer" });

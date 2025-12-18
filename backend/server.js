@@ -45,9 +45,12 @@ passport.use(new GoogleStrategy({
 
         const [rows] = await db.query("SELECT * FROM users WHERE email = ?", [email]);
         if (rows.length > 0) {
-            const existingUser = rows[0];
-            await db.query("UPDATE users SET avatar = ?, username = ?, updatedAt = NOW() WHERE id = ?", [photoUrl, name, existingUser.id]);
-            existingUser.avatar = photoUrl;
+         const existingUser = rows[0];
+            // PERBAIKAN: Hanya update waktu login (updatedAt). 
+             // Avatar & Username dibiarkan sesuai apa yang ada di database (foto upload manual kamu).
+            await db.query("UPDATE users SET updatedAt = NOW() WHERE id = ?", [existingUser.id]);
+
+            // Kembalikan data asli dari database, jangan ditimpa data Google
             return done(null, existingUser);
         } else {
             const [result] = await db.query(

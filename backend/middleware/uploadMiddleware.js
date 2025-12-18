@@ -1,9 +1,19 @@
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs'); // <--- TAMBAHAN 1: Import File System
+
+// Tentukan lokasi folder uploads
+const uploadDir = path.join(__dirname, '../uploads');
+
+// <--- TAMBAHAN 2: Cek apakah folder ada, jika tidak, buat baru
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+    console.log("Folder 'uploads' berhasil dibuat otomatis!");
+}
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, 'uploads/');
+        cb(null, uploadDir); // Gunakan variabel uploadDir yang sudah pasti ada
     },
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
