@@ -8,5 +8,5 @@ router.use(isAuthenticated, isAdmin);
 
 router.get('/users', userController.getAllUsers);
 router.put('/users/:id/deactivate', userController.deactivateUser);
-
+router.put('/users/:id/activate', userController.reactivateUser);
 module.exports = router;
