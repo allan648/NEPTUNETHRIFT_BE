@@ -8,7 +8,6 @@ import Search from '@/components/icons/Search.vue'
 import Edit from '@/components/icons/Edit.vue'
 import Plus from '@/components/icons/Plus.vue'
 import Refresh from '@/components/icons/Refresh.vue' // Icon baru untuk restore (bisa pakai icon lain jika belum ada)
-
 // --- SETUP API ---
 const API_URL = "http://localhost:3000/api"
 axios.defaults.withCredentials = true
@@ -17,6 +16,7 @@ axios.defaults.withCredentials = true
 const users = ref([])
 const isLoading = ref(false)
 const searchQuery = ref("") 
+const currentUserId = ref(null)
 
 // --- FUNCTIONS ---
 
@@ -30,6 +30,18 @@ const fetchUsers = async () => {
     alert("Gagal memuat data user.")
   } finally {
     isLoading.value = false
+  }
+}
+
+const fetchCurrentAdmin = async () => {
+  try {
+    // Kita pakai endpoint status yang sudah ada
+    const response = await axios.get(`${API_URL}/auth/status`)
+    if (response.data.isAuthenticated) {
+      currentUserId.value = response.data.userId // Simpan ID admin yang sedang login
+    }
+  } catch (error) {
+    console.error("Gagal cek user login:", error)
   }
 }
 
@@ -61,6 +73,7 @@ const toggleUserStatus = async (user) => {
 
 onMounted(() => {
   fetchUsers()
+  fetchCurrentAdmin()
 })
 </script>
 
@@ -153,35 +166,45 @@ onMounted(() => {
                   </td>
 
                   <td class="p-4 flex gap-2">
-                    <router-link
-                      :to="{ name: 'Editadmin', params: { id: user.id } }" 
-                      title="Edit"
-                      class="flex items-center justify-center p-2 rounded-md bg-yellow-400 hover:bg-yellow-500 transition-colors shadow-sm"
-                    >
-                      <Edit class="size-4 text-white" />
-                    </router-link>
-
-                    <router-link
-                      :to="{ name: 'Detailaccount', params: { id: user.id } }"
-                      title="Detail"
-                      class="flex items-center justify-center p-2 rounded-md bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm"
-                    >
-                      <Show class="size-4 text-white" />
-                    </router-link>
-                    
-                    <button
-                      @click="toggleUserStatus(user)"
-                      :title="user.is_active ? 'Deactivate User' : 'Activate User'"
-                      class="flex items-center justify-center p-2 rounded-md transition-colors shadow-sm"
-                      :class="user.is_active ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'"
-                    >
-                      <TrashCan v-if="user.is_active" class="size-4 text-white" />
                       
-                      <svg v-else xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4 text-white">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                      </svg>
-                    </button>
-                  </td>
+                      <router-link
+                        v-if="user.id !== currentUserId" 
+                        :to="{ name: 'Editadmin', params: { id: user.id } }" 
+                        title="Edit"
+                        class="flex items-center justify-center p-2 rounded-md bg-yellow-400 hover:bg-yellow-500 transition-colors shadow-sm"
+                      >
+                        <Edit class="size-4 text-white" />
+                      </router-link>
+
+                      <router-link
+                        :to="{ name: 'Detailaccount', params: { id: user.id } }"
+                        title="Detail"
+                        class="flex items-center justify-center p-2 rounded-md bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm"
+                      >
+                        <Show class="size-4 text-white" />
+                      </router-link>
+                      
+                      <button
+                        v-if="user.id !== currentUserId"
+                        @click="toggleUserStatus(user)"
+                        :title="user.is_active ? 'Deactivate User' : 'Activate User'"
+                        class="flex items-center justify-center p-2 rounded-md transition-colors shadow-sm"
+                        :class="user.is_active ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'"
+                      >
+                        <TrashCan v-if="user.is_active" class="size-4 text-white" />
+                        <svg v-else xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4 text-white">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                        </svg>
+                      </button>
+
+                      <span 
+                        v-else 
+                        class="px-3 py-2 text-xs font-bold text-gray-400 border border-gray-200 rounded-md select-none"
+                      >
+                        YOU
+                      </span>
+
+                    </td>
                 </tr>
 
               </tbody>

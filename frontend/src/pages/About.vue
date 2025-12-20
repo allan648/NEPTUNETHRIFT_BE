@@ -1,8 +1,29 @@
 <script setup>
+import { onMounted } from 'vue';        // <--- 1. Import onMounted
+import { useRoute } from 'vue-router';  // <--- 2. Import useRoute
+
 import GambarAbout from "@/asset/images/About1.jpg";
 import Aboutben1 from "@/asset/images/icons/AffordableStyle.png";
 import Aboutben2 from "@/asset/images/icons/CuratedThrift.png";
 import Aboutben3 from "@/asset/images/icons/SustainableChoice.png";
+
+const route = useRoute(); // <--- 3. Aktifkan Route
+
+// --- LOGIKA SCROLL OTOMATIS ---
+onMounted(() => {
+  // Cek apakah URL membawa tanda pagar (#contact-cs)
+  if (route.hash) {
+    
+    // Kita beri jeda 500ms (setengah detik) agar gambar & animasi AOS selesai loading dulu
+    setTimeout(() => {
+      const element = document.querySelector(route.hash);
+      if (element) {
+        // Scroll pelan-pelan ke elemen tersebut
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 500);
+  }
+});
 </script>
 
 <template>
@@ -139,6 +160,7 @@ import Aboutben3 from "@/asset/images/icons/SustainableChoice.png";
     <!-- Contact Us Section -->
     <!-- ======================================= -->
     <section
+      id="contact-cs"
       class="py-16 sm:py-20 px-6 sm:px-16 lg:px-[140px] pb-24 md:pb-30 bg-gray-50"
       data-aos="fade-up"
     >

@@ -43,16 +43,30 @@ passport.use(new GoogleStrategy({
         const photoUrl = profile.photos?.[0]?.value;
         const name = profile.displayName;
 
+        // 1. Cari user berdasarkan email
         const [rows] = await db.query("SELECT * FROM users WHERE email = ?", [email]);
+        
         if (rows.length > 0) {
-         const existingUser = rows[0];
-            // PERBAIKAN: Hanya update waktu login (updatedAt). 
-             // Avatar & Username dibiarkan sesuai apa yang ada di database (foto upload manual kamu).
-            await db.query("UPDATE users SET updatedAt = NOW() WHERE id = ?", [existingUser.id]);
+            const existingUser = rows[0];
 
-            // Kembalikan data asli dari database, jangan ditimpa data Google
+            // --- PENGAMAN 1: CEK STATUS AKTIF ---
+            // Jika is_active bernilai 0 (False), tolak akses!
+            if (existingUser.is_active === 0) {
+                // Parameter ke-2 'false' artinya login gagal
+                return done(null, false, { message: "Akun Anda dinonaktifkan." });
+            }
+            // ------------------------------------
+
+            // --- PENGAMAN 2: JANGAN TIMPA AVATAR ---
+            // Kita hanya update 'updatedAt' saja agar tahu kapan terakhir login.
+            // Nama & Avatar dibiarkan sesuai apa yang ada di database.
+            await db.query("UPDATE users SET updatedAt = NOW() WHERE id = ?", [existingUser.id]);
+            
             return done(null, existingUser);
+
         } else {
+            // --- JIKA USER BARU ---
+            // Buat user baru (otomatis aktif)
             const [result] = await db.query(
                 "INSERT INTO users (email, is_google, avatar, username, role, is_active, createdAt, updatedAt) VALUES (?, 1, ?, ?, 'customer', 1, NOW(), NOW())", 
                 [email, photoUrl, name]
@@ -60,7 +74,9 @@ passport.use(new GoogleStrategy({
             const newUser = { id: result.insertId, email, avatar: photoUrl, username: name, role: 'customer' };
             return done(null, newUser);
         }
-    } catch (error) { return done(error, null); }
+    } catch (error) {
+        return done(error, null);
+    }
 }));
 
 passport.serializeUser((user, done) => done(null, user.id));
@@ -73,14 +89,34 @@ passport.deserializeUser(async (id, done) => {
 
 // Route Google Auth (Manual di sini karena butuh passport)
 app.get('/api/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
-app.get('/api/auth/google/callback', 
-    passport.authenticate('google', { failureRedirect: '/login-failed' }),
-    (req, res) => {
-        req.session.userId = req.user.id;
-        req.session.role = req.user.role;
-        res.redirect(CLIENT_URL);
-    }
-);
+// Rute Callback Google dengan Custom Error Handling
+app.get('/api/auth/google/callback', (req, res, next) => {
+    passport.authenticate('google', (err, user, info) => {
+        // 1. Jika terjadi error server
+        if (err) {
+            return next(err); 
+        }
+
+        // 2. JIKA LOGIN GAGAL / DITOLAK (Status Inactive)
+        if (!user) {
+            // Kita kembalikan ke Frontend dengan membawa pesan "?error=inactive"
+            return res.redirect(`${CLIENT_URL}/?error=inactive`);
+        }
+
+        // 3. JIKA SUKSES
+        req.logIn(user, (err) => {
+            if (err) {
+                return next(err);
+            }
+            // Simpan Session
+            req.session.userId = user.id;
+            req.session.role = user.role;
+            
+            // Kirim ke Home
+            res.redirect(CLIENT_URL);
+        });
+    })(req, res, next);
+});
 
 // === MAIN ROUTES ===
 // Semua logika dipanggil di sini dengan awalan /api

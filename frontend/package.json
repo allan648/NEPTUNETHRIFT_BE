@@ -19,7 +19,7 @@
     "flowbite": "^3.1.2",
     "lucide-vue-next": "^0.556.0",
     "pinia": "^3.0.3",
-    "sweetalert2": "^11.23.0",
+    "sweetalert2": "^11.26.10",
     "tailwindcss": "^4.1.14",
     "vue": "^3.5.22",
     "vue-router": "^4.5.1"

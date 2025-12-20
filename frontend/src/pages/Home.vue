@@ -1,5 +1,7 @@
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
+import { useRoute, useRouter } from 'vue-router';
+import Swal from 'sweetalert2';
 import GambarHome from "@/asset/images/GambarHome.png";
 import NikeAirForce1 from "@/asset/images/NikeAirForce1.png";
 import NikeAirMax1 from "@/asset/images/NikeAirMax1.png";
@@ -11,6 +13,33 @@ import Sport from "@/asset/images/Sport.png";
 import Casual from "@/asset/images/Casual.png";
 import Formal from "@/asset/images/Formal.png";
 import Boots from "@/asset/images/Boots.png";
+
+const route = useRoute();
+const router = useRouter();
+
+onMounted(() => {
+  // Cek apakah ada pesan error di URL?
+  if (route.query.error === 'inactive') {
+    
+    // TAMPILKAN ALERT
+   Swal.fire({
+      icon: 'error',                          // Ikon silang merah
+      title: 'Akses Ditolak',                 // Judul Besar
+      text: 'Akun Anda telah dinonaktifkan. Silakan hubungi Customer Service.', // Pesan
+      confirmButtonText: 'Hubungi CS',        // Tombol Konfirmasi
+      confirmButtonColor: '#d33',             // Warna tombol merah
+      footer: '<a href="/help">Butuh bantuan?</a>' // Link kecil di bawah (opsional)
+    }).then((result) => {
+      // JIKA TOMBOL 'Hubungi CS' DIKLIK:
+      if (result.isConfirmed) {
+        // Arahkan ke halaman About, tepat di bagian ID #contact-cs
+        router.push({ path: '/about', hash: '#contact-cs' });
+      }
+    });
+    // Bersihkan URL agar bersih (hapus ?error=inactive)
+    router.replace({ query: null });
+  }
+});
 
 const newArrivals = ref([
   {
@@ -63,6 +92,7 @@ const duplicatedBrands = computed(() => [
   ...brands.value,
 ]);
 // --- AKHIR LOGIKA CAROUSEL ---
+
 </script>
 
 <template>
