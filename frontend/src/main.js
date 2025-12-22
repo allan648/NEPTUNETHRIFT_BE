@@ -6,8 +6,11 @@ import "aos/dist/aos.css";
 import App from "./App.vue";
 import router from "./router";
 import "../src/asset/main.css";
+import axios from 'axios'
 
 const app = createApp(App);
+
+axios.defaults.withCredentials = true;
 
 app.use(createPinia());
 app.use(router);

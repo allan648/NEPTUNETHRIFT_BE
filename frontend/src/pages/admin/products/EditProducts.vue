@@ -1,230 +1,223 @@
 <script setup>
-import { reactive } from 'vue';
+import { reactive, ref, onMounted } from 'vue';
+import axios from 'axios';
+import Swal from 'sweetalert2';
+import { useRouter, useRoute } from 'vue-router'; // Butuh useRoute untuk ambil ID
 
-// State untuk data form (Diisi dummy data sesuai screenshot)
-const productData = reactive({
-  name: 'New Balance 550 White Green',
-  category: 1, // Asumsi ID 1 adalah Shoes
-  description: 'The New Balance 550 White Green is a vintage basketball-inspired sneaker featuring a premium leather upper, perforated details, and signature "N" branding.',
-  size: '42',
-  sizePrice: 'Rp 120.000',
-  price: 'Rp 2.500.000',
-  // URL Gambar dummy untuk simulasi
-  coverPhoto: 'https://images.unsplash.com/photo-1551107696-a4b0c5a0d9a2?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
-  morePhotos: [
-    'https://images.unsplash.com/photo-1551107696-a4b0c5a0d9a2?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80',
-    'https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80',
-    'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80'
-  ]
+const router = useRouter();
+const route = useRoute(); // <--- Untuk ambil ID dari URL
+const API_URL = "http://localhost:3000/api";
+
+const form = reactive({
+  name: '',
+  category_id: '',
+  brand_id: '',
+  condition: 5,
+  size: '',
+  price: '',
+  description: ''
 });
 
-const categories = [
-  { id: 1, name: 'Shoes' },
-  { id: 2, name: 'Apparel' },
-  { id: 3, name: 'Accessories' },
-];
+// State File & Preview
+const files = reactive({ image: null, image_2: null, image_3: null });
+const previews = reactive({ image: null, image_2: null, image_3: null });
 
-// Fungsi simulasi remove photo
-const removePhoto = (index) => {
-  productData.morePhotos.splice(index, 1);
+const categories = ref([]);
+const brands = ref([]);
+const isLoading = ref(false);
+
+// --- FUNCTIONS ---
+
+const fetchMetadata = async () => {
+  try {
+    const response = await axios.get(`${API_URL}/admin/products/metadata`);
+    brands.value = response.data.brands;
+    categories.value = response.data.categories;
+  } catch (error) { console.error(error); }
 };
 
-const handleFileUpload = (event, type) => {
-  console.log(`File uploaded for ${type}`);
+// FUNGSI PENTING: Ambil data produk lama
+const fetchProductData = async () => {
+  try {
+    const id = route.params.id; // Ambil ID dari URL
+    const response = await axios.get(`${API_URL}/products/${id}`); // Pakai API Public detail produk yg sudah ada
+    const data = response.data.product;
+
+    // Isi Form
+    form.name = data.name;
+    form.price = data.price;
+    form.description = data.description;
+    form.condition = data.condition;
+    form.size = data.size;
+    form.brand_id = data.brand_id;
+    form.category_id = data.category_id;
+
+    // Isi Preview (Tampilkan foto lama)
+    previews.image = data.image;
+    previews.image_2 = data.image_2;
+    previews.image_3 = data.image_3;
+
+  } catch (error) {
+    Swal.fire("Error", "Gagal mengambil data produk", "error");
+    router.push({ name: 'Products' });
+  }
 };
 
-const updateProduct = () => {
-  console.log('Updated Data:', productData);
+const handleFileChange = (event, key) => {
+  const selectedFile = event.target.files[0];
+  if (selectedFile) {
+    files[key] = selectedFile;
+    previews[key] = URL.createObjectURL(selectedFile); // Ganti preview jadi foto baru
+  }
 };
+
+const updateProduct = async () => {
+  isLoading.value = true;
+  try {
+    const formData = new FormData();
+    formData.append('name', form.name);
+    formData.append('price', form.price);
+    formData.append('description', form.description);
+    formData.append('condition', form.condition);
+    formData.append('size', form.size);
+    formData.append('brand_id', form.brand_id);
+    formData.append('category_id', form.category_id);
+    
+    // Hanya kirim file jika user mengupload file baru
+    if (files.image) formData.append('image', files.image);
+    if (files.image_2) formData.append('image_2', files.image_2);
+    if (files.image_3) formData.append('image_3', files.image_3);
+
+    const id = route.params.id;
+    // Pakai Method PUT untuk Update
+    await axios.put(`${API_URL}/admin/products/${id}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+
+    Swal.fire('Sukses!', 'Produk berhasil diperbarui', 'success');
+    router.push({ name: 'Products' });
+
+  } catch (error) {
+    console.error(error);
+    Swal.fire('Gagal', 'Terjadi kesalahan sistem', 'error');
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+onMounted(async () => {
+  await fetchMetadata();
+  await fetchProductData(); // Load data saat halaman dibuka
+});
 </script>
 
 <template>
   <div class="space-y-6">
-    <!-- Header -->
     <div class="flex flex-col gap-2">
       <h1 class="text-3xl font-semibold">Edit Product</h1>
-
-      <!-- Breadcrumb -->
-      <nav class="text-sm font-medium text-gray-500" aria-label="Breadcrumb">
-        <ol class="list-none p-0 inline-flex items-center space-x-2">
-          <li><span>Katalog</span></li>
-          <li><span class="mx-2">></span></li>
-          <li><span>Destinations</span></li>
-          <li><span class="mx-2">></span></li>
-          <li class="text-gray-800"><span>Edit Product</span></li>
-        </ol>
-      </nav>
     </div>
 
-    <!-- Content Card -->
     <div class="flex flex-col rounded-3xl border border-gray-300 bg-white">
       <div class="p-8">
-
         <form @submit.prevent="updateProduct">
-          <div class="space-y-6">
+          <div class="space-y-8">
 
-            <!-- Cover Photo Section -->
             <div>
-              <label class="block text-base font-semibold text-gray-800 mb-2">Cover Photo</label>
-
-              <!-- Jika ada foto cover, tampilkan preview -->
-              <div v-if="productData.coverPhoto" class="relative w-full h-64 rounded-2xl overflow-hidden group mb-4">
-                <img :src="productData.coverPhoto" alt="Cover" class="w-full h-full object-cover">
-                <!-- Overlay untuk ganti foto -->
-                <div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" @click="$refs.coverInput.click()">
-                  <p class="text-white font-semibold">Change Cover Photo</p>
+              <label class="block text-base font-semibold text-gray-800 mb-4">Product Photos</label>
+              <div class="flex flex-wrap gap-6">
+                <div class="flex flex-col gap-2">
+                   <span class="text-xs font-bold text-gray-500 uppercase">Main Photo</span>
+                   <div class="w-40 h-40 border-2 border-dashed border-gray-300 rounded-2xl bg-gray-50 flex flex-col items-center justify-center cursor-pointer overflow-hidden relative group" @click="$refs.inputImage1.click()">
+                    <input type="file" ref="inputImage1" class="hidden" accept="image/*" @change="(e) => handleFileChange(e, 'image')" />
+                    <img v-if="previews.image" :src="previews.image" class="absolute inset-0 w-full h-full object-cover" />
+                    <div v-else class="text-gray-400">📷 Upload</div>
+                    <div class="absolute inset-0 bg-black/40 hidden group-hover:flex items-center justify-center text-white font-bold text-sm">Change</div>
+                  </div>
                 </div>
-              </div>
 
-              <!-- Input File (Hidden logic or fallback) -->
-              <div
-                v-else
-                class="border-2 border-dashed border-blue-900/50 rounded-2xl bg-gray-50 h-48 flex flex-col items-center justify-center cursor-pointer hover:bg-blue-50 transition-colors"
-                @click="$refs.coverInput.click()"
-              >
-                 <!-- Icon & Text placeholder code here (sama seperti add) -->
-                 <p class="text-sm font-semibold text-blue-900">Click to add photos</p>
-              </div>
+                <div class="flex flex-col gap-2">
+                   <span class="text-xs font-bold text-gray-500 uppercase">Side / Back</span>
+                   <div class="w-40 h-40 border-2 border-dashed border-gray-300 rounded-2xl bg-gray-50 flex flex-col items-center justify-center cursor-pointer overflow-hidden relative group" @click="$refs.inputImage2.click()">
+                    <input type="file" ref="inputImage2" class="hidden" accept="image/*" @change="(e) => handleFileChange(e, 'image_2')" />
+                    <img v-if="previews.image_2" :src="previews.image_2" class="absolute inset-0 w-full h-full object-cover" />
+                    <div v-else class="text-gray-400">📷 Upload</div>
+                    <div class="absolute inset-0 bg-black/40 hidden group-hover:flex items-center justify-center text-white font-bold text-sm">Change</div>
+                  </div>
+                </div>
 
-              <input type="file" ref="coverInput" class="hidden" @change="(e) => handleFileUpload(e, 'cover')" />
-            </div>
-
-            <!-- Name Input -->
-            <div>
-              <label for="name" class="block text-base font-semibold text-gray-800 mb-2">Name</label>
-              <input
-                v-model="productData.name"
-                type="text"
-                id="name"
-                placeholder="Name of destination"
-                class="w-full px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
-              >
-            </div>
-
-            <!-- Category Select -->
-            <div>
-              <label for="category" class="block text-base font-semibold text-gray-800 mb-2">Category</label>
-              <div class="relative">
-                <select
-                  v-model="productData.category"
-                  id="category"
-                  class="w-full px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200 appearance-none bg-white text-gray-700"
-                >
-                  <option value="" disabled>Select category</option>
-                  <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
-                </select>
-                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
-                  <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                <div class="flex flex-col gap-2">
+                   <span class="text-xs font-bold text-gray-500 uppercase">Detail / Tag</span>
+                   <div class="w-40 h-40 border-2 border-dashed border-gray-300 rounded-2xl bg-gray-50 flex flex-col items-center justify-center cursor-pointer overflow-hidden relative group" @click="$refs.inputImage3.click()">
+                    <input type="file" ref="inputImage3" class="hidden" accept="image/*" @change="(e) => handleFileChange(e, 'image_3')" />
+                    <img v-if="previews.image_3" :src="previews.image_3" class="absolute inset-0 w-full h-full object-cover" />
+                    <div v-else class="text-gray-400">📷 Upload</div>
+                    <div class="absolute inset-0 bg-black/40 hidden group-hover:flex items-center justify-center text-white font-bold text-sm">Change</div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <!-- Description Textarea -->
-            <div>
-              <label for="description" class="block text-base font-semibold text-gray-800 mb-2">Description</label>
-              <textarea
-                v-model="productData.description"
-                id="description"
-                rows="4"
-                placeholder="Description"
-                class="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200 resize-none"
-              ></textarea>
-            </div>
+            <hr class="border-gray-200">
 
-            <!-- Size & Price (Split Row) -->
-            <div>
-              <label class="block text-base font-semibold text-gray-800 mb-2">Size</label>
-              <div class="flex items-center gap-3">
-                <input
-                  v-model="productData.size"
-                  type="text"
-                  placeholder="50"
-                  class="w-full px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
-                >
-                <span class="text-gray-500 font-bold">-</span>
-                <input
-                  v-model="productData.sizePrice"
-                  type="text"
-                  placeholder="Rp 120.000"
-                  class="w-full px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
-                >
-              </div>
-            </div>
-
-            <!-- Price Input -->
-            <div>
-              <label for="price" class="block text-base font-semibold text-gray-800 mb-2">Price</label>
-              <input
-                v-model="productData.price"
-                type="text"
-                id="price"
-                placeholder="Rp 0"
-                class="w-full px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
-              >
-            </div>
-
-            <!-- More Photo Section (Modified for Edit) -->
-            <div>
-              <label class="block text-base font-semibold text-gray-800 mb-2">More Photo</label>
-
-              <!-- Existing Photos Grid -->
-              <div v-if="productData.morePhotos.length" class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
-                <div v-for="(photo, index) in productData.morePhotos" :key="index" class="relative group">
-                  <img :src="photo" class="w-full h-32 object-cover rounded-xl shadow-sm" alt="Product variation">
-
-                  <!-- Delete Button (X) -->
-                  <button
-                    @click.prevent="removePhoto(index)"
-                    class="absolute -top-2 -right-2 bg-white text-gray-700 hover:text-red-500 rounded-full p-1 shadow-md transition-colors"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
+            <div class="space-y-6">
+                <div>
+                  <label class="block text-base font-semibold text-gray-800 mb-2">Product Name</label>
+                  <input v-model="form.name" type="text" class="w-full px-4 py-3 border border-gray-300 rounded-full" >
                 </div>
-              </div>
 
-              <!-- Upload Area -->
-              <div
-                class="border-2 border-dashed border-blue-900/50 rounded-2xl bg-gray-50 h-32 flex flex-col items-center justify-center cursor-pointer hover:bg-blue-50 transition-colors"
-                @click="$refs.morePhotosInput.click()"
-              >
-                <input type="file" ref="morePhotosInput" multiple class="hidden" @change="(e) => handleFileUpload(e, 'more')" />
-                <div class="bg-white p-2 rounded-lg shadow-sm mb-2">
-                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-blue-900">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-                    </svg>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-base font-semibold text-gray-800 mb-2">Brand</label>
+                        <select v-model="form.brand_id" class="w-full px-4 py-3 border border-gray-300 rounded-full bg-white">
+                            <option v-for="brand in brands" :key="brand.id" :value="brand.id">{{ brand.name }}</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-base font-semibold text-gray-800 mb-2">Category</label>
+                        <select v-model="form.category_id" class="w-full px-4 py-3 border border-gray-300 rounded-full bg-white">
+                            <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+                        </select>
+                    </div>
                 </div>
-                <p class="text-sm font-semibold text-blue-900">Click to add photos</p>
-                <p class="text-xs text-gray-500 mt-0.5">or drag & drop</p>
-              </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label class="block text-base font-semibold text-gray-800 mb-2">Size</label>
+                      <input v-model="form.size" type="number" class="w-full px-4 py-3 border border-gray-300 rounded-full">
+                    </div>
+                    <div>
+                      <label class="block text-base font-semibold text-gray-800 mb-2">Price (Rp)</label>
+                      <input v-model="form.price" type="number" class="w-full px-4 py-3 border border-gray-300 rounded-full">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-base font-semibold text-gray-800 mb-2">Condition</label>
+                    <select v-model="form.condition" class="w-full px-4 py-3 border border-gray-300 rounded-full bg-white">
+                        <option :value="5">✨ 5 - Like New</option>
+                        <option :value="4">👌 4 - Excellent</option>
+                        <option :value="3">🛡️ 3 - Good</option>
+                        <option :value="2">⚠️ 2 - Fair</option>
+                        <option :value="1">💀 1 - Bad</option>
+                    </select>
+                </div>
+
+                <div>
+                  <label class="block text-base font-semibold text-gray-800 mb-2">Description</label>
+                  <textarea v-model="form.description" rows="4" class="w-full px-4 py-3 border border-gray-300 rounded-2xl resize-none"></textarea>
+                </div>
             </div>
 
-          </div>
-
-          <!-- Action Buttons -->
-          <div class="mt-8 flex items-center space-x-4">
-            <button
-              type="submit"
-              class="bg-blue-900 text-white font-semibold px-8 py-3 rounded-full hover:bg-blue-800 transition duration-300"
-            >
-              Save
-            </button>
-
-            <router-link
-              :to="{ name: 'Products' }"
-              class="bg-white text-gray-800 font-semibold px-8 py-3 border border-gray-300 rounded-full hover:bg-gray-100 transition duration-300 flex items-center justify-center"
-            >
-              Cancel
-            </router-link>
+            <div class="mt-8 flex items-center space-x-4">
+              <button type="submit" :disabled="isLoading" class="bg-blue-900 text-white font-semibold px-8 py-3 rounded-full hover:bg-blue-800 transition disabled:opacity-50">
+                <span v-if="isLoading">Updating...</span>
+                <span v-else>Save Changes</span>
+              </button>
+              <router-link :to="{ name: 'Products' }" class="bg-white text-gray-800 font-semibold px-8 py-3 border border-gray-300 rounded-full hover:bg-gray-100">Cancel</router-link>
+            </div>
           </div>
         </form>
-
       </div>
     </div>
   </div>
 </template>
-
-<style scoped>
-/* Styling khusus */
-</style>

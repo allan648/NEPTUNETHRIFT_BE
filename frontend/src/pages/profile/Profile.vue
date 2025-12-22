@@ -1,19 +1,25 @@
 <script setup>
-import { ref, reactive, onMounted, onUpdated } from "vue";
+import { ref, reactive, onMounted, onUpdated, watchEffect } from "vue";
 import axios from "axios";
 import AOS from "aos";
 import "aos/dist/aos.css";
+// 1. Import SweetAlert2
+import Swal from 'sweetalert2'; 
+// 2. Import Store
+import { useAuthStore } from '@/stores/authStore';
 
 const API_URL = "http://localhost:3000/api";
 axios.defaults.withCredentials = true;
+
+const authStore = useAuthStore();
 
 const profile = reactive({
   username: "",
   email: "",
   phone: "",
   address: "",
-  image: null,     // Untuk preview di layar
-  imageFile: null, // TAMBAHAN: Untuk menyimpan file mentah yang akan dikirim
+  image: null,     
+  imageFile: null, 
   isGoogle: false,
 });
 
@@ -25,95 +31,119 @@ const passwords = reactive({
 
 const isLoading = ref(false);
 
-// Fetch Data
-const fetchUserProfile = async () => {
-  try {
-    const response = await axios.get(`${API_URL}/auth/status`);
-    if (response.data.isAuthenticated) {
-      profile.username = response.data.username || "";
-      profile.email = response.data.email || "";
-      // Data phone dan address sekarang pasti muncul karena backend sudah diperbaiki
-      profile.phone = response.data.phone || "";
-      profile.address = response.data.address || "";
-      profile.image = response.data.avatar || null;
-      profile.isGoogle = response.data.isGoogle || false;
-    }
-  } catch (error) {
-    console.error("Gagal load profile:", error);
+// --- SINKRONISASI DATA ---
+const fillProfileData = () => {
+  if (authStore.user) {
+    profile.username = authStore.user.username || "";
+    profile.email = authStore.user.email || "";
+    profile.phone = authStore.user.phone || ""; 
+    profile.address = authStore.user.address || ""; 
+    profile.image = authStore.user.avatar || null;
+    profile.isGoogle = !!authStore.user.is_google || !!authStore.user.isGoogle; 
   }
 };
 
-// Handle Ganti Foto (Preview & Simpan File)
+// Handle Ganti Foto
 const changePhoto = (event) => {
   const file = event.target.files[0];
   if (file) {
-    // 1. Simpan file asli ke state untuk dikirim nanti
+    // Validasi Ukuran (Opsional: Max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'File Terlalu Besar',
+            text: 'Ukuran foto maksimal 2MB!',
+            confirmButtonColor: '#000'
+        });
+        return;
+    }
     profile.imageFile = file;
-    // 2. Buat preview agar user bisa lihat sebelum save
     profile.image = URL.createObjectURL(file);
   }
 };
 
-// Simpan Profil (Pakai FormData)
+// Simpan Profil
 const saveProfileSettings = async () => {
   isLoading.value = true;
   try {
-    // KITA WAJIB PAKAI FORMDATA KARENA ADA FILE GAMBAR
     const formData = new FormData();
     formData.append('username', profile.username);
     formData.append('phone', profile.phone);
     formData.append('address', profile.address);
     
-    // Hanya kirim avatar jika user mengupload gambar baru
     if (profile.imageFile) {
       formData.append('avatar', profile.imageFile);
     }
 
-    const response = await axios.put(`${API_URL}/user/profile`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
+    await axios.put(`${API_URL}/user/profile`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
     });
 
-    alert("Profil berhasil diperbarui!");
+    // --- GANTI ALERT DENGAN SWEETALERT (SUCCESS) ---
+    await Swal.fire({
+        icon: 'success',
+        title: 'Berhasil!',
+        text: 'Profil Anda telah diperbarui.',
+        showConfirmButton: false,
+        timer: 1500
+    });
     
-    // Update state image jika ada balasan avatar baru dari server
-    if (response.data.newAvatar) {
-        profile.image = response.data.newAvatar;
-    }
-
-    // Reload halaman agar segar
-    setTimeout(() => {
-      window.location.reload();
-    }, 500);
+    // Refresh Data Store
+    await authStore.checkAuth(); 
 
   } catch (error) {
     console.error("Gagal update:", error);
-    alert("Gagal menyimpan perubahan.");
+    // --- GANTI ALERT DENGAN SWEETALERT (ERROR) ---
+    Swal.fire({
+        icon: 'error',
+        title: 'Gagal',
+        text: 'Terjadi kesalahan saat menyimpan data. Coba lagi nanti.',
+        confirmButtonColor: '#d33'
+    });
   } finally {
     isLoading.value = false;
   }
 };
 
 const changePassword = async () => {
-  // ... (kode password tetap sama) ...
   if (passwords.new !== passwords.confirm) {
-    alert("Konfirmasi password baru tidak cocok!");
+    // --- ALERT PASSWORD TIDAK COCOK ---
+    Swal.fire({
+        icon: 'error',
+        title: 'Oops...',
+        text: 'Konfirmasi password baru tidak cocok!',
+        confirmButtonColor: '#d33'
+    });
     return;
   }
-  // TODO: Sambungkan ke endpoint change-password backend
-  alert("Fitur ganti password belum disambungkan ke API.");
+  
+  // TODO: Sambungkan ke API Change Password
+  Swal.fire({
+      icon: 'info',
+      title: 'Info',
+      text: 'Fitur ganti password belum disambungkan ke API.',
+      confirmButtonColor: '#000'
+  });
 };
 
-onMounted(() => {
-  fetchUserProfile();
+// --- LIFECYCLE ---
+onMounted(async () => {
   AOS.init({ once: true, duration: 1000, easing: "ease-out-quart" });
+  await authStore.checkAuth();
+  fillProfileData();
+});
+
+watchEffect(() => {
+    if (authStore.user) {
+        fillProfileData();
+    }
 });
 
 onUpdated(() => {
   AOS.refresh();
 });
 </script>
+
 <template>
   <div class="w-full p-6 md:p-10">
     <div class="mx-auto max-w-4xl">
@@ -175,7 +205,7 @@ onUpdated(() => {
                   v-model="profile.email"
                   type="email"
                   disabled
-                  class="block w-full rounded-xl border-gray-200 bg-gray-50 text-gray-500 px-4 py-3.5 transition-all duration-300 cursor-not-allowed"
+                  class="block w-full rounded-xl border border-gray-400 bg-gray-50 text-gray-500 px-4 py-3.5 transition-all duration-300 cursor-not-allowed"
                 />
                 <div class="absolute inset-y-0 right-4 flex items-center">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-gray-400">
@@ -191,7 +221,7 @@ onUpdated(() => {
                 v-model="profile.username"
                 type="text"
                 :disabled="profile.isGoogle"
-                class="block w-full rounded-xl border-gray-300 px-4 py-3.5 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all duration-300 hover:border-blue-300"
+                class="block w-full rounded-xl border border-gray-400 px-4 py-3.5 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all duration-300 hover:border-blue-300"
               />
               <p v-if="profile.isGoogle" class="mt-1 text-xs text-gray-500 italic">
                 *Nama akun Google tidak dapat diubah.
@@ -204,7 +234,7 @@ onUpdated(() => {
                 v-model="profile.phone"
                 type="tel"
                 placeholder="08..."
-                class="block w-full rounded-xl border-gray-300 px-4 py-3.5 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all duration-300 hover:border-blue-300"
+                class="block w-full rounded-xl border border-gray-400 px-4 py-3.5 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all duration-300 hover:border-blue-300"
               />
             </div>
 
@@ -214,7 +244,7 @@ onUpdated(() => {
                 v-model="profile.address"
                 rows="3"
                 placeholder="Alamat lengkap pengiriman..."
-                class="block w-full rounded-xl border-gray-300 px-4 py-3.5 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all duration-300 hover:border-blue-300 resize-none"
+                class="block w-full rounded-xl border border-gray-400 px-4 py-3.5 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all duration-300 hover:border-blue-300 resize-none"
               ></textarea>
             </div>
           </div>
@@ -244,16 +274,16 @@ onUpdated(() => {
           <div class="space-y-6">
             <div>
               <label class="block mb-2 text-sm font-semibold text-gray-700">Current Password</label>
-              <input v-model="passwords.current" type="password" class="block w-full rounded-xl border-gray-300 px-4 py-3.5 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all duration-300" />
+              <input v-model="passwords.current" type="password" class="block w-full rounded-xl border border-gray-400 px-4 py-3.5 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all duration-300" />
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label class="block mb-2 text-sm font-semibold text-gray-700">New Password</label>
-                <input v-model="passwords.new" type="password" class="block w-full rounded-xl border-gray-300 px-4 py-3.5 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all duration-300" />
+                <input v-model="passwords.new" type="password" class="block w-full rounded-xl border border-gray-400 px-4 py-3.5 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all duration-300" />
               </div>
               <div>
                 <label class="block mb-2 text-sm font-semibold text-gray-700">Confirm Password</label>
-                <input v-model="passwords.confirm" type="password" class="block w-full rounded-xl border-gray-300 px-4 py-3.5 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all duration-300" />
+                <input v-model="passwords.confirm" type="password" class="block w-full rounded-xl border border-gray-400 px-4 py-3.5 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all duration-300" />
               </div>
             </div>
           </div>

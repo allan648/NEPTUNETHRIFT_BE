@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import Swal from 'sweetalert2'
-import { RouterLink } from 'vue-router'
+import { RouterLink } from 'vue-router' // Import RouterLink
 
 // Icons
 import ArrowRight from '@/components/icons/ArrowRight.vue'
@@ -14,7 +14,7 @@ import Plus from '@/components/icons/Plus.vue'
 
 // --- CONFIG ---
 const API_URL = "http://localhost:3000/api"
-axios.defaults.withCredentials = true // Wajib agar session Admin terbaca
+axios.defaults.withCredentials = true 
 
 // --- STATE ---
 const products = ref([])
@@ -23,11 +23,10 @@ const searchQuery = ref("")
 
 // --- FUNCTIONS ---
 
-// 1. Fetch Products
+// 1. Fetch Products (Read)
 const fetchProducts = async () => {
   isLoading.value = true
   try {
-    // Kita panggil endpoint yang sudah kita buat tadi (support search juga)
     const url = searchQuery.value 
       ? `${API_URL}/admin/products?search=${searchQuery.value}`
       : `${API_URL}/admin/products`
@@ -58,7 +57,7 @@ const deleteProduct = (id, name) => {
       try {
         await axios.delete(`${API_URL}/admin/products/${id}`)
         Swal.fire('Terhapus!', 'Produk berhasil dihapus.', 'success')
-        fetchProducts() // Refresh table
+        fetchProducts() // Refresh table otomatis
       } catch (error) {
         Swal.fire('Gagal!', 'Terjadi kesalahan saat menghapus.', 'error')
       }
@@ -113,78 +112,97 @@ onMounted(() => {
           <div class="max-w-full overflow-x-auto">
             <table class="min-w-180 w-full">
               <thead class="bg-blue-700 text-xs text-white">
-  <tr>
-    <th class="p-4 text-start font-semibold w-12">NO</th>
-    <th class="p-4 text-start font-semibold w-24">IMAGE</th>
-    <th class="p-4 text-start font-semibold">PRODUCT DETAILS</th>
-    <th class="p-4 text-start font-semibold">PRICE</th>
-    <th class="p-4 text-start font-semibold">CONDITION</th> 
-    <th class="p-4 text-start font-semibold">ACTION</th>
-  </tr>
-</thead>
+                  <tr>
+                    <th class="p-4 text-start font-semibold w-12">NO</th>
+                    <th class="p-4 text-start font-semibold w-24">IMAGE</th>
+                    <th class="p-4 text-start font-semibold">PRODUCT DETAILS</th>
+                    <th class="p-4 text-start font-semibold">PRICE</th>
+                    <th class="p-4 text-start font-semibold">CONDITION</th> 
+                    <th class="p-4 text-start font-semibold">ACTION</th>
+                  </tr>
+                </thead>
 
-<tbody>
-  <tr v-for="(product, index) in products" :key="product.id" class="text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-    <td class="p-4 text-gray-900">{{ index + 1 }}</td>
-                  
-    <td class="p-4">
-       <img :src="product.image || 'https://via.placeholder.com/80'" class="w-16 h-16 object-cover rounded-lg border border-gray-200" />
-    </td>
+                <tbody>
+                  <tr v-if="isLoading">
+                    <td colspan="6" class="p-8 text-center text-gray-500">Loading data...</td>
+                  </tr>
 
-    <td class="p-4">
-       <div class="flex flex-col gap-1">
-         <span class="font-bold text-gray-900 text-base">{{ product.name }}</span>
-         <div class="flex gap-2">
-            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-800 text-white uppercase">{{ product.brand_name }}</span>
-            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 uppercase">{{ product.category_name }}</span>
-         </div>
-       </div>
-    </td>
+                  <tr v-else-if="products.length === 0">
+                    <td colspan="6" class="p-8 text-center text-gray-500">No products found.</td>
+                  </tr>
 
-    <td class="p-4 font-medium text-green-700">{{ formatRp(product.price) }}</td>
+                  <tr v-else v-for="(product, index) in products" :key="product.id" class="text-sm text-gray-700 hover:bg-gray-50 transition-colors border-b last:border-b-0 border-gray-100">
+                    <td class="p-4 text-gray-900">{{ index + 1 }}</td>
+                                      
+                    <td class="p-4">
+                       <img :src="product.image || 'https://via.placeholder.com/80'" class="w-16 h-16 object-cover rounded-lg border border-gray-200" />
+                    </td>
 
-    <td class="p-4">
-      <div class="flex flex-col gap-1">
-        <span class="font-bold text-xs" 
-          :class="{
-            'text-green-600': product.condition >= 5,
-            'text-blue-600': product.condition === 4,
-            'text-yellow-600': product.condition === 3,
-            'text-orange-600': product.condition === 2,
-            'text-red-600': product.condition <= 1
-          }"
-        >
-          {{ 
-            product.condition === 5 ? '✨ Like New (5/5)' :
-            product.condition === 4 ? '👌 Excellent (4/5)' :
-            product.condition === 3 ? '🛡️ Good (3/5)' :
-            product.condition === 2 ? '⚠️ Fair (2/5)' :
-            '💀 Bad (1/5)'
-          }}
-        </span>
-        
-        <div class="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-          <div 
-            class="h-full rounded-full"
-            :class="{
-              'bg-green-500': product.condition >= 5,
-              'bg-blue-500': product.condition === 4,
-              'bg-yellow-500': product.condition === 3,
-              'bg-orange-500': product.condition === 2,
-              'bg-red-500': product.condition <= 1
-            }"
-            :style="{ width: (product.condition / 5 * 100) + '%' }"
-          ></div>
-        </div>
-      </div>
-    </td>
-    <td class="p-4 flex gap-2 items-center h-full pt-8">
-        <router-link :to="{ name: 'Editproduct', params: { id: product.id } }" class="flex items-center justify-center p-2 rounded-md bg-yellow-400 hover:bg-yellow-500 text-white shadow-sm"><Edit class="size-4" /></router-link>
-         <router-link :to="{ name: 'Detailproduct', params: { id: product.id } }" class="flex items-center justify-center p-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white shadow-sm"><Show class="size-4" /></router-link>
-         <button @click="deleteProduct(product.id, product.name)" class="flex items-center justify-center p-2 rounded-md bg-red-600 hover:bg-red-700 text-white shadow-sm"><TrashCan class="size-4" /></button>
-    </td>
-  </tr>
-</tbody>
+                    <td class="p-4">
+                       <div class="flex flex-col gap-1">
+                         <span class="font-bold text-gray-900 text-base">{{ product.name }}</span>
+                         <div class="flex gap-2">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-800 text-white uppercase">{{ product.brand_name }}</span>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 uppercase">{{ product.category_name }}</span>
+                         </div>
+                       </div>
+                    </td>
+
+                    <td class="p-4 font-medium text-green-700">{{ formatRp(product.price) }}</td>
+
+                    <td class="p-4">
+                      <div class="flex flex-col gap-1">
+                        <span class="font-bold text-xs" 
+                          :class="{
+                            'text-green-600': product.condition >= 5,
+                            'text-blue-600': product.condition === 4,
+                            'text-yellow-600': product.condition === 3,
+                            'text-orange-600': product.condition === 2,
+                            'text-red-600': product.condition <= 1
+                          }"
+                        >
+                          {{ 
+                            product.condition === 5 ? '✨ Like New (5/5)' :
+                            product.condition === 4 ? '👌 Excellent (4/5)' :
+                            product.condition === 3 ? '🛡️ Good (3/5)' :
+                            product.condition === 2 ? '⚠️ Fair (2/5)' :
+                            '💀 Bad (1/5)'
+                          }}
+                        </span>
+                        
+                        <div class="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                          <div 
+                            class="h-full rounded-full transition-all duration-500"
+                            :class="{
+                              'bg-green-500': product.condition >= 5,
+                              'bg-blue-500': product.condition === 4,
+                              'bg-yellow-500': product.condition === 3,
+                              'bg-orange-500': product.condition === 2,
+                              'bg-red-500': product.condition <= 1
+                            }"
+                            :style="{ width: (product.condition / 5 * 100) + '%' }"
+                          ></div>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td class="p-4">
+                        <div class="flex gap-2 items-center">
+                            <router-link :to="{ name: 'Editproduct', params: { id: product.id } }" class="flex items-center justify-center p-2 rounded-md bg-yellow-400 hover:bg-yellow-500 text-white shadow-sm transition-colors" title="Edit">
+                                <Edit class="size-4" />
+                            </router-link>
+                            
+                            <router-link :to="{ name: 'Detailproduct', params: { id: product.id } }" class="flex items-center justify-center p-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-colors" title="Detail">
+                                <Show class="size-4" />
+                            </router-link>
+                            
+                            <button @click="deleteProduct(product.id, product.name)" class="flex items-center justify-center p-2 rounded-md bg-red-600 hover:bg-red-700 text-white shadow-sm transition-colors" title="Delete">
+                                <TrashCan class="size-4" />
+                            </button>
+                        </div>
+                    </td>
+                  </tr>
+                </tbody>
             </table>
           </div>
         </div>

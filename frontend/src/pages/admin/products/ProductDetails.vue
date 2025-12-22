@@ -1,162 +1,213 @@
 <script setup>
-import { reactive } from 'vue';
+import { ref, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
+import axios from 'axios';
+import Swal from 'sweetalert2';
 
-// Data Dummy untuk simulasi tampilan Detail
-const productDetail = reactive({
-  name: 'New Balance 550 White Green',
-  category: 1, // ID Category (Shoes)
-  description: 'The New Balance 550 White Green is a vintage basketball-inspired sneaker featuring a premium leather upper, perforated details, and signature "N" branding.',
-  size: '42',
-  sizePrice: 'Rp 120.000',
-  price: 'Rp 2.500.000',
-  coverPhoto: 'https://images.unsplash.com/photo-1551107696-a4b0c5a0d9a2?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
-  morePhotos: [
-    'https://images.unsplash.com/photo-1551107696-a4b0c5a0d9a2?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80',
-    'https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80',
-    'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80'
-  ]
+// --- CONFIG ---
+const route = useRoute(); // Ambil ID dari URL
+const API_URL = "http://localhost:3000/api";
+
+// --- STATE ---
+const product = ref({}); // Tempat menyimpan data asli
+const isLoading = ref(true);
+
+// --- FUNCTIONS ---
+
+// 1. Format Rupiah
+const formatRp = (price) => {
+  if (!price) return 'Rp 0';
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0
+  }).format(price);
+};
+
+// 2. Helper Kondisi (Angka ke Text)
+const getConditionText = (num) => {
+  if (num === 5) return '✨ 5 - Like New';
+  if (num === 4) return '👌 4 - Excellent';
+  if (num === 3) return '🛡️ 3 - Good';
+  if (num === 2) return '⚠️ 2 - Fair';
+  return '💀 1 - Bad';
+};
+
+// 3. Fetch Data Produk
+const fetchProductDetail = async () => {
+  isLoading.value = true;
+  try {
+    const id = route.params.id;
+    // Panggil API Public (karena isinya sama saja: detail produk)
+    const response = await axios.get(`${API_URL}/products/${id}`);
+    
+    // API mengembalikan { product: {...}, related: [...] }
+    product.value = response.data.product;
+
+  } catch (error) {
+    console.error(error);
+    Swal.fire('Error', 'Gagal memuat data produk', 'error');
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+onMounted(() => {
+  fetchProductDetail();
 });
-
-// Dummy categories untuk mapping select box
-const categories = [
-  { id: 1, name: 'Shoes' },
-  { id: 2, name: 'Apparel' },
-  { id: 3, name: 'Accessories' },
-];
 </script>
 
 <template>
   <div class="space-y-6">
-    <!-- Header -->
     <div class="flex flex-col gap-2">
       <h1 class="text-3xl font-semibold">Detail Product</h1>
-
-      <!-- Breadcrumb -->
-      <nav class="text-sm font-medium text-gray-500" aria-label="Breadcrumb">
-        <ol class="list-none p-0 inline-flex items-center space-x-2">
-          <li><span>Katalog</span></li>
-          <li><span class="mx-2">></span></li>
-          <li><span>Destinations</span></li>
-          <li><span class="mx-2">></span></li>
-          <li class="text-gray-800"><span>Detail Product</span></li>
-        </ol>
+      
+      <nav class="text-sm font-medium text-gray-500">
+         <router-link :to="{ name: 'Products' }" class="hover:text-blue-600">Products</router-link>
+         <span class="mx-2">></span>
+         <span class="text-gray-800">{{ product.name || 'Loading...' }}</span>
       </nav>
     </div>
 
-    <!-- Content Card -->
-    <div class="flex flex-col rounded-3xl border border-gray-300 bg-white">
+    <div v-if="isLoading" class="p-10 text-center bg-white rounded-3xl border border-gray-200">
+        <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-700 mx-auto"></div>
+        <p class="mt-4 text-gray-500">Loading product details...</p>
+    </div>
+
+    <div v-else class="flex flex-col rounded-3xl border border-gray-300 bg-white shadow-sm">
       <div class="p-8">
 
         <form @submit.prevent>
-          <div class="space-y-6">
+          <div class="space-y-8">
 
-            <!-- Cover Photo Display -->
             <div>
-              <label class="block text-base font-semibold text-gray-800 mb-2">Cover Photo</label>
-              <div class="relative w-full h-64 rounded-2xl overflow-hidden shadow-sm">
-                <img :src="productDetail.coverPhoto" alt="Cover" class="w-full h-full object-cover">
-              </div>
-            </div>
-
-            <!-- Name Input (Read Only) -->
-            <div>
-              <label class="block text-base font-semibold text-gray-800 mb-2">Name</label>
-              <input
-                :value="productDetail.name"
-                disabled
-                type="text"
-                class="w-full px-4 py-3 border border-gray-300 rounded-full focus:outline-none bg-gray-100 text-gray-600 cursor-not-allowed"
-              >
-            </div>
-
-            <!-- Category Select (Read Only) -->
-            <div>
-              <label class="block text-base font-semibold text-gray-800 mb-2">Category</label>
-              <div class="relative">
-                <select
-                  :value="productDetail.category"
-                  disabled
-                  class="w-full px-4 py-3 border border-gray-300 rounded-full focus:outline-none appearance-none bg-gray-100 text-gray-600 cursor-not-allowed"
-                >
-                  <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
-                </select>
-                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
-                  <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+              <label class="block text-base font-semibold text-gray-800 mb-4">Product Photos</label>
+              <div class="flex flex-wrap gap-6">
+                
+                <div class="flex flex-col gap-2">
+                   <span class="text-xs font-bold text-gray-500 uppercase">Main Photo</span>
+                   <div class="w-40 h-40 rounded-2xl overflow-hidden border border-gray-200 bg-gray-50">
+                     <img 
+                        :src="product.image || 'https://via.placeholder.com/150'" 
+                        class="w-full h-full object-cover hover:scale-110 transition-transform duration-500"
+                     >
+                   </div>
                 </div>
-              </div>
-            </div>
 
-            <!-- Description Textarea (Read Only) -->
-            <div>
-              <label class="block text-base font-semibold text-gray-800 mb-2">Description</label>
-              <textarea
-                :value="productDetail.description"
-                disabled
-                rows="4"
-                class="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:outline-none bg-gray-100 text-gray-600 cursor-not-allowed resize-none"
-              ></textarea>
-            </div>
-
-            <!-- Size & Price Split (Read Only) -->
-            <div>
-              <label class="block text-base font-semibold text-gray-800 mb-2">Size</label>
-              <div class="flex items-center gap-3">
-                <input
-                  :value="productDetail.size"
-                  disabled
-                  type="text"
-                  class="w-full px-4 py-3 border border-gray-300 rounded-full focus:outline-none bg-gray-100 text-gray-600 cursor-not-allowed"
-                >
-                <span class="text-gray-500 font-bold">-</span>
-                <input
-                  :value="productDetail.sizePrice"
-                  disabled
-                  type="text"
-                  class="w-full px-4 py-3 border border-gray-300 rounded-full focus:outline-none bg-gray-100 text-gray-600 cursor-not-allowed"
-                >
-              </div>
-            </div>
-
-            <!-- Price Input (Read Only) -->
-            <div>
-              <label class="block text-base font-semibold text-gray-800 mb-2">Price</label>
-              <input
-                :value="productDetail.price"
-                disabled
-                type="text"
-                class="w-full px-4 py-3 border border-gray-300 rounded-full focus:outline-none bg-gray-100 text-gray-600 cursor-not-allowed"
-              >
-            </div>
-
-            <!-- More Photo Display -->
-            <div>
-              <label class="block text-base font-semibold text-gray-800 mb-2">More Photo</label>
-
-              <!-- Photos Grid -->
-              <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div v-for="(photo, index) in productDetail.morePhotos" :key="index" class="relative group">
-                  <img :src="photo" class="w-full h-32 object-cover rounded-xl shadow-sm" alt="Product variation">
-
-                  <!-- Tanda X (Hanya visual sesuai gambar, tidak ada fungsi delete) -->
-                  <div class="absolute -top-2 -right-2 bg-white text-gray-400 rounded-full p-1 shadow-md cursor-not-allowed">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </div>
+                <div class="flex flex-col gap-2">
+                   <span class="text-xs font-bold text-gray-500 uppercase">Side / Back</span>
+                   <div class="w-40 h-40 rounded-2xl overflow-hidden border border-gray-200 bg-gray-50">
+                     <img 
+                        v-if="product.image_2"
+                        :src="product.image_2" 
+                        class="w-full h-full object-cover hover:scale-110 transition-transform duration-500"
+                     >
+                     <div v-else class="w-full h-full flex items-center justify-center text-gray-400 text-xs italic">No Image</div>
+                   </div>
                 </div>
+
+                <div class="flex flex-col gap-2">
+                   <span class="text-xs font-bold text-gray-500 uppercase">Detail / Tag</span>
+                   <div class="w-40 h-40 rounded-2xl overflow-hidden border border-gray-200 bg-gray-50">
+                     <img 
+                        v-if="product.image_3"
+                        :src="product.image_3" 
+                        class="w-full h-full object-cover hover:scale-110 transition-transform duration-500"
+                     >
+                     <div v-else class="w-full h-full flex items-center justify-center text-gray-400 text-xs italic">No Image</div>
+                   </div>
+                </div>
+
               </div>
-              <!-- Tidak ada kotak upload karena ini halaman Detail -->
+            </div>
+
+            <hr class="border-gray-200">
+
+            <div class="space-y-6">
+
+                <div>
+                  <label class="block text-base font-semibold text-gray-800 mb-2">Product Name</label>
+                  <input
+                    :value="product.name"
+                    disabled
+                    type="text"
+                    class="w-full px-4 py-3 border border-gray-300 rounded-full bg-gray-50 text-gray-700 cursor-text"
+                  >
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-base font-semibold text-gray-800 mb-2">Brand</label>
+                        <input
+                            :value="product.brand_name" 
+                            disabled
+                            class="w-full px-4 py-3 border border-gray-300 rounded-full bg-gray-50 text-gray-700"
+                        >
+                    </div>
+                    <div>
+                        <label class="block text-base font-semibold text-gray-800 mb-2">Category</label>
+                        <input
+                            :value="product.category_name" 
+                            disabled
+                            class="w-full px-4 py-3 border border-gray-300 rounded-full bg-gray-50 text-gray-700"
+                        >
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label class="block text-base font-semibold text-gray-800 mb-2">Size</label>
+                      <input
+                        :value="product.size"
+                        disabled
+                        class="w-full px-4 py-3 border border-gray-300 rounded-full bg-gray-50 text-gray-700"
+                      >
+                    </div>
+                    <div>
+                      <label class="block text-base font-semibold text-gray-800 mb-2">Price</label>
+                      <input
+                        :value="formatRp(product.price)"
+                        disabled
+                        class="w-full px-4 py-3 border border-gray-300 rounded-full bg-gray-50 text-gray-700 font-medium"
+                      >
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-base font-semibold text-gray-800 mb-2">Condition</label>
+                    <input
+                        :value="getConditionText(product.condition)"
+                        disabled
+                        class="w-full px-4 py-3 border border-gray-300 rounded-full bg-gray-50 text-gray-700"
+                    >
+                </div>
+
+                <div>
+                  <label class="block text-base font-semibold text-gray-800 mb-2">Description</label>
+                  <textarea
+                    :value="product.description"
+                    disabled
+                    rows="4"
+                    class="w-full px-4 py-3 border border-gray-300 rounded-2xl bg-gray-50 text-gray-700 resize-none"
+                  ></textarea>
+                </div>
             </div>
 
           </div>
 
-          <!-- Action Buttons -->
           <div class="mt-8 flex items-center space-x-4">
             <router-link
               :to="{ name: 'Products' }"
               class="bg-white text-gray-800 font-semibold px-8 py-3 border border-gray-300 rounded-full hover:bg-gray-100 transition duration-300 flex items-center justify-center min-w-[120px]"
             >
               Back
+            </router-link>
+            
+            <router-link
+              :to="{ name: 'Editproduct', params: { id: product.id } }"
+              class="bg-yellow-400 text-white font-semibold px-8 py-3 rounded-full hover:bg-yellow-500 transition duration-300 flex items-center justify-center min-w-[120px]"
+            >
+              Edit This
             </router-link>
           </div>
         </form>
@@ -165,7 +216,3 @@ const categories = [
     </div>
   </div>
 </template>
-
-<style scoped>
-/* Styling tambahan jika diperlukan */
-</style>

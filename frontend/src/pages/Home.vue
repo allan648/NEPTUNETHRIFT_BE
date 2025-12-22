@@ -170,8 +170,13 @@ const duplicatedBrands = computed(() => [
         </div>
       </div>
       <div class="flex justify-center mt-6">
-        <button class="px-6 py-2 border rounded-lg">View All</button>
-      </div>
+  <RouterLink 
+    to="/product" 
+    class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-100 transition-all duration-300"
+  >
+    View All
+  </RouterLink>
+</div>
     </section>
 
     <!-- PROMO SELLING -->

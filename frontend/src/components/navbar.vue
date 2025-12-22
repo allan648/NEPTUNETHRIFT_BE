@@ -1,9 +1,12 @@
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick, computed } from "vue";
+import { ref, onMounted, onUnmounted, nextTick, computed, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import axios from 'axios';
+import Swal from 'sweetalert2';
+
 // Import Store
 import { useAuthStore } from '@/stores/authStore';
+import { useCartStore } from '@/stores/cartStore'; // <--- 1. Import Cart Store
 
 // Import Komponen & Aset
 import LoginModal from "@/components/auth/LoginModal.vue";
@@ -15,16 +18,17 @@ import EnvelopeIcon from "@/asset/images/icons/envelope.png";
 // --- INISIALISASI ---
 const route = useRoute();
 const router = useRouter();
-const authStore = useAuthStore(); // Gunakan Store
+const authStore = useAuthStore(); 
+const cartStore = useCartStore(); // <--- 2. Gunakan Cart Store
 
 // --- STATE DARI STORE (COMPUTED) ---
-// Gunakan computed agar reaktif mengikuti perubahan di store
 const isAuthenticated = computed(() => authStore.isAuthenticated);
 const currentUserAvatar = computed(() => authStore.user?.avatar || defaultAvatar);
 const currentUsername = computed(() => authStore.user?.username || "User");
 const isAdmin = computed(() => authStore.user?.role === 'admin');
-// Ambil kontrol modal dari store juga (atau lokal jika mau simple)
-// Disini saya mapping ke store agar sinkron dengan router guard
+// Ambil jumlah cart dari store
+const cartCount = computed(() => cartStore.count); 
+
 const showLoginModal = computed({
   get: () => authStore.showLoginModal,
   set: (val) => val ? authStore.openLoginModal() : authStore.closeLoginModal()
@@ -38,18 +42,28 @@ const navbarRef = ref(null);
 const navHeight = ref(0);
 const searchTerm = ref("");
 
-// --- FUNGSI PROTEKSI NAVIGASI (PENTING) ---
+// --- FUNGSI PROTEKSI NAVIGASI ---
 const handleProtectedNav = (path) => {
   if (isAuthenticated.value) {
-    // Jika login, pindah halaman
     router.push(path);
   } else {
-    // Jika belum, buka modal
-    authStore.openLoginModal();
+    Swal.fire({
+      icon: 'warning',
+      title: 'Akses Dibatasi',
+      text: 'Silakan login untuk mengakses fitur ini.',
+      showCancelButton: true,
+      confirmButtonText: 'Login Sekarang',
+      cancelButtonText: 'Nanti Saja',
+      confirmButtonColor: '#000000',
+      cancelButtonColor: '#d33',
+    }).then((result) => {
+      if (result.isConfirmed) {
+        authStore.openLoginModal();
+      }
+    });
   }
 };
 
-// --- FUNGSI LAINNYA ---
 const handleSearch = () => {
   if (!searchTerm.value.trim()) return;
   router.push({ path: '/product', query: { search: searchTerm.value } });
@@ -76,18 +90,32 @@ const closeOnClickOutside = (event) => {
 };
 
 const handleLogout = async () => {
-    const confirmLogout = confirm("Apakah Anda yakin ingin keluar?");
-    if (!confirmLogout) return;
-    
-    // Panggil logout dari store (karena store yang handle redirect & clear state)
-    await authStore.logout();
-    isUserOpen.value = false;
+    Swal.fire({
+        title: 'Sign Out?',
+        text: "Anda yakin ingin keluar?",
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Ya, Keluar'
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            await authStore.logout();
+            cartStore.count = 0; // Reset cart count
+            isUserOpen.value = false;
+            Swal.fire('Signed Out', 'Anda berhasil keluar.', 'success');
+        }
+    });
 };
 
 // --- LIFECYCLE HOOKS ---
 onMounted(async () => {
-  // Cek status login saat navbar dimuat
   await authStore.checkAuth();
+  
+  // Jika User Login, hitung isi keranjang
+  if (authStore.isAuthenticated) {
+     await cartStore.fetchCartCount();
+  }
   
   nextTick(() => {
     if (navbarRef.value) {
@@ -97,6 +125,15 @@ onMounted(async () => {
   
   window.addEventListener("scroll", handleScroll);
   window.addEventListener("click", closeOnClickOutside);
+});
+
+// Watcher: Jika status login berubah (misal habis login modal), update cart count
+watch(isAuthenticated, async (newVal) => {
+    if (newVal) {
+        await cartStore.fetchCartCount();
+    } else {
+        cartStore.count = 0;
+    }
 });
 
 onUnmounted(() => {
@@ -145,43 +182,16 @@ onUnmounted(() => {
 
         <ul class="flex items-center space-x-12">
            <li class="group flex flex-col items-center">
-            <RouterLink
-              to="/product"
-              class="font-medium text-blue-700 transition-colors duration-300 group-hover:text-blue-500"
-              :class="{ 'text-blue-500': route.path === '/product' }"
-            >
-              Product
-            </RouterLink>
-            <span
-              class="mt-1 h-0.5 bg-blue-500 rounded-full transition-all duration-400 ease-out"
-              :class="route.path === '/product' ? 'w-8' : 'w-0 group-hover:w-8'"
-            ></span>
+            <RouterLink to="/product" class="font-medium text-blue-700 transition-colors duration-300 group-hover:text-blue-500" :class="{ 'text-blue-500': route.path === '/product' }">Product</RouterLink>
+            <span class="mt-1 h-0.5 bg-blue-500 rounded-full transition-all duration-400 ease-out" :class="route.path === '/product' ? 'w-8' : 'w-0 group-hover:w-8'"></span>
           </li>
           <li class="group flex flex-col items-center">
-            <RouterLink
-              to="/promo"
-              class="font-medium text-blue-700 transition-colors duration-300 group-hover:text-blue-500"
-              :class="{ 'text-blue-500': route.path === '/promo' }"
-            >
-              Promo
-            </RouterLink>
-            <span
-              class="mt-1 h-0.5 bg-blue-500 rounded-full transition-all duration-400 ease-out"
-              :class="route.path === '/promo' ? 'w-8' : 'w-0 group-hover:w-8'"
-            ></span>
+            <RouterLink to="/promo" class="font-medium text-blue-700 transition-colors duration-300 group-hover:text-blue-500" :class="{ 'text-blue-500': route.path === '/promo' }">Promo</RouterLink>
+            <span class="mt-1 h-0.5 bg-blue-500 rounded-full transition-all duration-400 ease-out" :class="route.path === '/promo' ? 'w-8' : 'w-0 group-hover:w-8'"></span>
           </li>
           <li class="group flex flex-col items-center">
-            <RouterLink
-              to="/about"
-              class="font-medium text-blue-700 transition-colors duration-300 group-hover:text-blue-500"
-              :class="{ 'text-blue-500': route.path === '/about' }"
-            >
-              About
-            </RouterLink>
-            <span
-              class="mt-1 h-0.5 bg-blue-500 rounded-full transition-all duration-400 ease-out"
-              :class="route.path === '/about' ? 'w-8' : 'w-0 group-hover:w-8'"
-            ></span>
+            <RouterLink to="/about" class="font-medium text-blue-700 transition-colors duration-300 group-hover:text-blue-500" :class="{ 'text-blue-500': route.path === '/about' }">About</RouterLink>
+            <span class="mt-1 h-0.5 bg-blue-500 rounded-full transition-all duration-400 ease-out" :class="route.path === '/about' ? 'w-8' : 'w-0 group-hover:w-8'"></span>
           </li>
         </ul>
       </div>
@@ -196,24 +206,24 @@ onUnmounted(() => {
 
       <div class="hidden md:flex items-center space-x-10">
         
-        <div class="group flex flex-col items-center cursor-pointer">
-          <a @click.prevent="handleProtectedNav('/user/cart')" aria-label="View Shopping Cart">
+        <div class="group flex flex-col items-center cursor-pointer relative"> <a @click.prevent="handleProtectedNav('/user/cart')" aria-label="View Shopping Cart" class="relative">
             <img :src="cartIcon" alt="Shopping Cart" class="h-10 w-10 transition-transform duration-300 group-hover:scale-110" />
-          </a>
-          <span
-            class="mt-1 h-0.5 bg-blue-500 rounded-full transition-all duration-400 ease-out"
-            :class="route.path === '/user/cart' ? 'w-8' : 'w-0 group-hover:w-8'"
-          ></span>
-        </div>
+            
+            <div 
+                v-if="cartCount > 0"
+                class="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white shadow-sm"
+            >
+                {{ cartCount }}
+            </div>
 
+          </a>
+          <span class="mt-1 h-0.5 bg-blue-500 rounded-full transition-all duration-400 ease-out" :class="route.path === '/user/cart' ? 'w-8' : 'w-0 group-hover:w-8'"></span>
+        </div>
         <div class="group flex flex-col items-center cursor-pointer">
           <a @click.prevent="handleProtectedNav('/myorder')" aria-label="View My Orders">
             <img :src="EnvelopeIcon" alt="Notification" class=" mt-1 h-8 w-8 transition-transform duration-300 group-hover:scale-110" />
           </a>
-          <span
-            class="mt-1 h-0.5 bg-blue-500 rounded-full transition-all duration-400 ease-out"
-            :class="route.path === '/myorder' ? 'w-8' : 'w-0 group-hover:w-8'"
-          ></span>
+          <span class="mt-1 h-0.5 bg-blue-500 rounded-full transition-all duration-400 ease-out" :class="route.path === '/myorder' ? 'w-8' : 'w-0 group-hover:w-8'"></span>
         </div>
 
         <div>
@@ -242,24 +252,15 @@ onUnmounted(() => {
     </div>
   </nav>
 
-  <div
-    v-if="isSidebarOpen"
-    class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] md:hidden"
-    @click="isSidebarOpen = false"
-  ></div>
+  <div v-if="isSidebarOpen" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] md:hidden" @click="isSidebarOpen = false"></div>
 
-  <aside
-    class="fixed top-0 left-0 w-[280px] h-full bg-white z-[70] shadow-2xl transform transition-transform duration-300 ease-in-out md:hidden flex flex-col"
-    :class="isSidebarOpen ? 'translate-x-0' : '-translate-x-full'"
-  >
+  <aside class="fixed top-0 left-0 w-[280px] h-full bg-white z-[70] shadow-2xl transform transition-transform duration-300 ease-in-out md:hidden flex flex-col" :class="isSidebarOpen ? 'translate-x-0' : '-translate-x-full'">
     <div class="p-6 flex justify-between items-center border-b border-gray-100">
       <span class="font-extrabold text-xl tracking-tight">
         <span class="text-blue-700">NEPTUNE</span>THRIFT
       </span>
       <button @click="isSidebarOpen = false" class="p-2 rounded-full hover:bg-gray-100 transition-colors">
-        <svg class="h-6 w-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-        </svg>
+        <svg class="h-6 w-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
       </button>
     </div>
 
@@ -278,9 +279,14 @@ onUnmounted(() => {
           About
         </RouterLink>
         
-        <a @click.prevent="handleProtectedNav('/user/cart'); isSidebarOpen = false" class="flex items-center gap-4 px-4 py-3 rounded-xl text-gray-700 font-medium hover:bg-blue-50 hover:text-blue-700 transition-all cursor-pointer">
-          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-          Cart
+        <a @click.prevent="handleProtectedNav('/user/cart'); isSidebarOpen = false" class="flex items-center gap-4 px-4 py-3 rounded-xl text-gray-700 font-medium hover:bg-blue-50 hover:text-blue-700 transition-all cursor-pointer justify-between">
+          <div class="flex items-center gap-4">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+            Cart
+          </div>
+          <span v-if="cartCount > 0" class="bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+            {{ cartCount }}
+          </span>
         </a>
       </nav>
     </div>

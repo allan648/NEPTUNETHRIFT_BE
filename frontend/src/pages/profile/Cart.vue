@@ -1,76 +1,113 @@
 <script setup>
-import { ref, computed, onMounted, onUpdated } from 'vue'
+import { ref, computed, onMounted, onUpdated, nextTick } from 'vue'
+import axios from 'axios';
+import Swal from 'sweetalert2';
+import { useRouter } from 'vue-router';
 import AOS from "aos";
 import "aos/dist/aos.css";
 
-// Import Gambar Dummy
-import Vans from "@/asset/images/Vans.png";
-import NikeShadow from "@/asset/images/NikeShadow.png";
-import NewBalance from "@/asset/images/NewBalance.png";
+const router = useRouter();
+const API_URL = "http://localhost:3000/api";
+axios.defaults.withCredentials = true; // Wajib agar session terbaca
 
-// Data Dummy Cart
-const cartItems = ref([
-  {
-    id: 1,
-    name: 'Nike Air Shadow 2.0 White',
-    size: 'Large',
-    color: 'White',
-    price: 1450000,
-    quantity: 1,
-    imageUrl: NikeShadow
-  },
-  {
-    id: 2,
-    name: 'Vans Old Skool Classic Red',
-    size: 'Medium',
-    color: 'Red',
-    price: 1800000,
-    quantity: 1,
-    imageUrl: Vans
-  },
-  {
-    id: 3,
-    name: 'New Balance 574 Core',
-    size: 'Large',
-    color: 'Blue',
-    price: 2400000,
-    quantity: 1,
-    imageUrl: NewBalance
+// --- STATE ---
+const cartItems = ref([]);
+const isLoading = ref(true);
+
+// --- FUNCTIONS ---
+
+// 1. Format Rupiah
+const formatRp = (price) => {
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0
+  }).format(price);
+};
+
+// 2. Ambil Data Keranjang dari API
+const fetchCart = async () => {
+  isLoading.value = true;
+  try {
+    const response = await axios.get(`${API_URL}/cart`);
+    cartItems.value = response.data.items;
+    
+    // Refresh animasi AOS setelah data dimuat
+    nextTick(() => {
+      AOS.refresh();
+    });
+
+  } catch (error) {
+    console.error("Gagal load cart", error);
+    // Jika sesi habis (401), lempar ke home/login
+    if (error.response && error.response.status === 401) {
+        router.push('/');
+    }
+  } finally {
+    isLoading.value = false;
   }
-])
+};
 
-// Logic Cart
-const increaseQuantity = (item) => {
-  item.quantity++
-}
+// 3. Hapus Item (API)
+const removeItem = (cartId, productName) => {
+  Swal.fire({
+    title: 'Hapus Item?',
+    text: `Hapus ${productName} dari keranjang?`,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#d33',
+    cancelButtonColor: '#3085d6',
+    confirmButtonText: 'Ya, Hapus',
+    cancelButtonText: 'Batal'
+  }).then(async (result) => {
+    if (result.isConfirmed) {
+      try {
+        await axios.delete(`${API_URL}/cart/${cartId}`);
+        
+        // Hapus dari state lokal biar responsif (tanpa reload)
+        cartItems.value = cartItems.value.filter(item => item.cart_id !== cartId);
+        
+        Swal.fire({
+            title: 'Terhapus!',
+            text: 'Item berhasil dihapus.',
+            icon: 'success',
+            timer: 1500,
+            showConfirmButton: false
+        });
+        
+        setTimeout(() => AOS.refresh(), 100); 
 
-const decreaseQuantity = (item) => {
-  if (item.quantity > 1) {
-    item.quantity--
-  }
-}
+      } catch (error) {
+        Swal.fire('Error', 'Gagal menghapus item', 'error');
+      }
+    }
+  });
+};
 
-const removeItem = (itemId) => {
-  // Hapus item dengan efek visual (tunggu animasi CSS selesai jika ada, tapi AOS handle basic-nya)
-  cartItems.value = cartItems.value.filter(item => item.id !== itemId)
-  setTimeout(() => AOS.refresh(), 100); // Refresh posisi elemen lain
-}
-
+// 4. Hitung Total (Computed)
 const totalPrice = computed(() => {
-  return cartItems.value.reduce((total, item) => total + (item.price * item.quantity), 0)
-})
+  return cartItems.value.reduce((total, item) => total + (item.price * item.quantity), 0);
+});
 
+// 5. Checkout Dummy
 const proceedToCheckout = () => {
-  alert(`Checkout dengan total harga: Rp. ${totalPrice.value.toLocaleString()}`)
-}
+  if (cartItems.value.length === 0) return;
+  
+  Swal.fire({
+    title: 'Checkout',
+    text: 'Fitur Checkout akan segera hadir di modul selanjutnya!',
+    icon: 'info'
+  });
+};
 
-// Inisialisasi AOS
+// --- LIFECYCLE ---
 onMounted(() => {
   AOS.init({
     once: true,
     duration: 800,
-    easing: "ease-out-cubic", // Easing sedikit berbeda agar terasa lebih "berbobot"
+    easing: "ease-out-cubic",
   });
+  fetchCart(); // Load data saat halaman dibuka
 });
 
 onUpdated(() => {
@@ -79,7 +116,7 @@ onUpdated(() => {
 </script>
 
 <template>
-  <div class="w-full p-6 md:p-10">
+  <div class="w-full p-6 md:p-10 min-h-screen">
     <div class="mx-auto max-w-4xl">
       
       <div 
@@ -88,21 +125,25 @@ onUpdated(() => {
         data-aos-delay="100"
       >
         <h1 class="text-3xl md:text-4xl font-bold text-gray-800">My Cart</h1>
-        <span class="text-gray-500 text-sm">{{ cartItems.length }} Items</span>
+        <span class="text-gray-500 text-sm" v-if="!isLoading">{{ cartItems.length }} Items</span>
       </div>
 
-      <div class="space-y-6">
+      <div v-if="isLoading" class="flex justify-center py-20">
+         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+      </div>
+
+      <div v-else class="space-y-6">
+        
         <div
           v-for="(item, index) in cartItems"
-          :key="item.id"
+          :key="item.cart_id"
           class="flex flex-col sm:flex-row items-center gap-6 p-4 border border-gray-200 rounded-2xl bg-white shadow-sm hover:shadow-md transition-shadow duration-300"
-          
           data-aos="fade-up"
-          :data-aos-delay="150 + (index * 100)"
+          :data-aos-delay="150 + (index * 50)"
         >
-          <div class="w-28 h-28 flex-shrink-0 bg-gray-50 rounded-xl overflow-hidden">
+          <div class="w-28 h-28 flex-shrink-0 bg-gray-50 rounded-xl overflow-hidden relative border border-gray-100">
             <img
-              :src="item.imageUrl"
+              :src="item.image || 'https://via.placeholder.com/150'"
               :alt="item.name"
               class="h-full w-full object-cover mix-blend-multiply hover:scale-105 transition-transform duration-500"
             />
@@ -110,36 +151,37 @@ onUpdated(() => {
 
           <div class="flex-grow text-center sm:text-left w-full sm:w-auto">
             <h2 class="text-lg font-bold text-gray-900 mb-1">{{ item.name }}</h2>
+            
             <div class="flex items-center justify-center sm:justify-start gap-4 text-sm text-gray-500 mb-2">
               <span class="bg-gray-100 px-2 py-0.5 rounded text-xs font-medium text-gray-600">Size: {{ item.size }}</span>
-              <span class="flex items-center gap-1">
-                <span class="w-3 h-3 rounded-full border border-gray-300" :style="{ backgroundColor: item.color.toLowerCase() }"></span>
-                {{ item.color }}
+              
+              <span class="flex items-center gap-1 text-xs font-medium" 
+                :class="{
+                    'text-green-600': item.condition >= 5,
+                    'text-blue-600': item.condition === 4,
+                    'text-yellow-600': item.condition === 3,
+                    'text-orange-600': item.condition <= 2
+                }"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                   <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Condition: {{ item.condition }}/5
               </span>
             </div>
-            <p class="text-xl font-bold text-blue-700">Rp {{ item.price.toLocaleString('id-ID') }}</p>
+            
+            <p class="text-xl font-bold text-blue-700">{{ formatRp(item.price) }}</p>
           </div>
 
           <div class="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto mt-2 sm:mt-0 border-t sm:border-0 pt-4 sm:pt-0 border-gray-100">
             
-            <div class="flex items-center rounded-full bg-gray-50 border border-gray-200 shadow-sm">
-              <button
-                @click="decreaseQuantity(item)"
-                class="w-8 h-8 flex items-center justify-center text-lg font-bold text-gray-500 hover:text-blue-600 hover:bg-white rounded-full transition-all"
-              >
-                -
-              </button>
-              <span class="w-10 text-center font-semibold text-gray-800">{{ item.quantity }}</span>
-              <button
-                @click="increaseQuantity(item)"
-                class="w-8 h-8 flex items-center justify-center text-lg font-bold text-gray-500 hover:text-blue-600 hover:bg-white rounded-full transition-all"
-              >
-                +
-              </button>
+            <div class="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-200">
+                <span>Qty:</span>
+                <span class="font-bold text-gray-900">{{ item.quantity }}</span>
             </div>
 
             <button 
-              @click="removeItem(item.id)" 
+              @click="removeItem(item.cart_id, item.name)" 
               class="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 rounded-full transition-all"
               title="Remove Item"
             >
@@ -161,12 +203,12 @@ onUpdated(() => {
             </svg>
           </div>
           <p class="text-gray-500 text-lg font-medium">Keranjang kamu kosong.</p>
-          <router-link to="/product" class="text-blue-600 font-semibold mt-2 inline-block hover:underline">Mulai Belanja</router-link>
+          <router-link :to="{ name: 'Product' }" class="text-blue-600 font-semibold mt-2 inline-block hover:underline">Mulai Belanja</router-link>
         </div>
       </div>
 
       <div 
-        v-if="cartItems.length > 0" 
+        v-if="cartItems.length > 0 && !isLoading" 
         class="mt-10 pt-8 border-t border-gray-100"
         data-aos="fade-up"
         data-aos-delay="500"
@@ -176,7 +218,7 @@ onUpdated(() => {
           <div class="text-center sm:text-left">
              <p class="text-gray-500 text-sm mb-1">Total Pesanan</p>
              <p class="text-3xl font-extrabold text-gray-900 tracking-tight">
-              Rp {{ totalPrice.toLocaleString('id-ID') }}
+              {{ formatRp(totalPrice) }}
             </p>
             <p class="text-xs text-gray-400 mt-1">Termasuk pajak (jika ada)</p>
           </div>

@@ -1,21 +1,34 @@
+const jwt = require('jsonwebtoken');
+
 const isAuthenticated = (req, res, next) => {
-    if (req.session.userId) {
-        return next();
+    // 1. Ambil token dari Cookies
+    const token = req.cookies.token; 
+
+    // Jika tidak ada token, tolak!
+    if (!token) {
+        return res.status(401).json({ message: "Silakan login terlebih dahulu (Token hilang)." });
     }
-    return res.status(401).json({ error: "Unauthorized: Silakan login terlebih dahulu" });
+
+    try {
+        // 2. Cek keaslian token
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        
+        // 3. PENTING: Tempelkan data user ke request object
+        // Agar bisa dibaca oleh Controller (req.user.id)
+        req.user = decoded; 
+
+        next(); // Lanjut ke Controller
+    } catch (error) {
+        return res.status(403).json({ message: "Sesi kadaluarsa, silakan login ulang." });
+    }
 };
 
-// Middleware Khusus Admin
-const isAdmin = async (req, res, next) => {
-    // Kita asumsikan role sudah disimpan di session saat login, atau cek DB ulang
-    // Untuk performa, sebaiknya simpan di session. 
-    // Tapi untuk keamanan maksimal, query DB. Kita pakai query DB user saat ini.
-    const db = require('../models'); // Sesuaikan path model
-    // Note: Logika detailnya bisa disesuaikan, ini versi simpel
-    if (req.session.role === 'admin') {
-        return next();
+const isAdmin = (req, res, next) => {
+    if (req.user && req.user.role === 'admin') {
+        next();
+    } else {
+        res.status(403).json({ message: "Akses ditolak! Khusus Admin." });
     }
-    return res.status(403).json({ error: "Forbidden: Akses khusus Admin" });
 };
 
 module.exports = { isAuthenticated, isAdmin };

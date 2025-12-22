@@ -30,7 +30,7 @@ export const useAuthStore = defineStore('auth', () => {
       isAuthenticated.value = response.data.isAuthenticated
       
       // Simpan data user jika login, null jika tidak
-      user.value = response.data.isAuthenticated ? response.data : null
+      user.value = response.data.isAuthenticated ? response.data.user : null
       
       return isAuthenticated.value
     } catch (error) {

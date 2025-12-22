@@ -114,8 +114,8 @@ const router = createRouter({
           children: [
             { path: "", name: "Products", component: ProductLists }, // Nama 'Products' dipakai di redirect CreateProduct.vue
             { path: "create", name: "Createproduct", component: CreateProduct },
-            { path: "edit", name: "Editproduct", component: EditProduct },
-            { path: "detail", name: "Detailproduct", component: DetailProduct },
+            { path: "edit/:id", name: "Editproduct", component: EditProduct },
+            { path: "detail/:id", name: "Detailproduct", component: DetailProduct },
           ],
         },
         { path: "categories", name: "Categories", component: CategoryLists },
