@@ -1,378 +1,245 @@
-<script>
-import NikeAirForce1 from "@/asset/images/NikeAirForce1.png";
-import NikeAirMax1 from "@/asset/images/NikeAirMax1.png";
-import Vans from "@/asset/images/Vans.png";
-import NikeShadow from "@/asset/images/NikeShadow.png";
-import NewBalance from "@/asset/images/NewBalance.png";
+<script setup>
+import { ref, reactive, onMounted, watch, nextTick } from 'vue';
+import axios from 'axios';
 import AOS from "aos";
 import "aos/dist/aos.css";
 
-export default {
-  name: "ProductPage",
-  data() {
-    return {
-      products: [
-        {
-          id: 1,
-          name: "New Balance Sneakers",
-          rating: 3.5,
-          originalPrice: 1450000,
-          image: NewBalance,
-        },
-        {
-          id: 2,
-          name: "Nike Shadow",
-          rating: 4.5,
-          originalPrice: 1800000,
-          image: NikeShadow,
-        },
-        {
-          id: 3,
-          name: "Nike Air Max 1",
-          rating: 5.0,
-          originalPrice: 1500000,
-          discountPrice: 1200000,
-          discount: "-30%",
-          image: NikeAirMax1,
-        },
-        {
-          id: 4,
-          name: "Vans Old Skool",
-          rating: 3.5,
-          originalPrice: 2600000,
-          discountPrice: 2400000,
-          discount: "-20%",
-          image: Vans,
-        },
-        {
-          id: 5,
-          name: "Nike Air Force 1",
-          rating: 4.5,
-          originalPrice: 1800000,
-          image: NikeAirForce1,
-        },
-        {
-          id: 6,
-          name: "Vans Classic Slip-On",
-          rating: 4.5,
-          originalPrice: 1600000,
-          discountPrice: 1300000,
-          discount: "-30%",
-          image: Vans,
-        },
-        {
-          id: 7,
-          name: "Nike jordan 1 Mid",
-          rating: 5.0,
-          originalPrice: 2320000,
-          discountPrice: 2120000,
-          discount: "-20%",
-          image: NikeAirMax1,
-        },
-        {
-          id: 8,
-          name: "New Balance 574",
-          rating: 4.0,
-          originalPrice: 1450000,
-          image: NewBalance,
-        },
-        {
-          id: 9,
-          name: "Nike Air Max 90",
-          rating: 3.0,
-          originalPrice: 800000,
-          image: Vans,
-        },
-      ],
-    };
-  },
-  mounted() {
-    AOS.init({
-      once: true,
-      duration: 800,
-      easing: "ease-in-out",
-    });
-  },
-  updated() {
-    AOS.refresh();
-  },
+// --- 1. TAMBAHKAN DUA BARIS PENTING INI ---
+import { useRouter } from 'vue-router'; // Import fungsi router
+const router = useRouter();             // Aktifkan router
+// ------------------------------------------
+
+const API_URL = "http://localhost:3000/api";
+
+// --- STATE ---
+const products = ref([]);
+const brands = ref([]);
+const categories = ref([]);
+const isLoading = ref(true);
+
+// State Filter
+const filters = reactive({
+  brand_id: '',
+  category_id: '',
+  sort: 'newest'
+});
+
+// --- FUNCTIONS ---
+
+// 1. Format Rupiah
+const formatRp = (price) => {
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0
+  }).format(price);
 };
+
+// 2. Fungsi Pindah Halaman (Sekarang 'router' sudah dikenali!)
+const goToDetail = (id) => {
+  console.log("Navigasi ke ID:", id); // Cek console untuk memastikan ID ada
+  router.push({ name: 'DetailProduct', params: { id: id } });
+};
+
+// 3. Fetch Data Sidebar (Brand & Category)
+const fetchMetadata = async () => {
+  try {
+    const response = await axios.get(`${API_URL}/metadata`);
+    brands.value = response.data.brands;
+    categories.value = response.data.categories;
+  } catch (error) {
+    console.error("Gagal load filter", error);
+  }
+};
+
+// 4. Fetch Products
+const fetchProducts = async () => {
+  isLoading.value = true;
+  try {
+    const params = {
+      brand_id: filters.brand_id || undefined,
+      category_id: filters.category_id || undefined,
+      sort: filters.sort
+    };
+
+    const response = await axios.get(`${API_URL}/products`, { params });
+    products.value = response.data;
+    
+    nextTick(() => {
+      AOS.refresh();
+    });
+
+  } catch (error) {
+    console.error("Gagal load produk", error);
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+// --- LIFECYCLE ---
+onMounted(() => {
+  AOS.init({ once: true, duration: 800, easing: "ease-in-out" });
+  fetchMetadata(); 
+  fetchProducts(); 
+});
+
+watch(filters, () => {
+  fetchProducts();
+});
 </script>
 
 <template>
-  <main
-    class="container mx-auto py-8 px-6 sm:px-16 lg:px-[140px] pb-24 md:pb-30"
-    data-aos="fade-up"
-  >
-    <!-- Breadcrumb Navigation -->
+  <main class="container mx-auto py-8 px-6 sm:px-16 lg:px-[140px] pb-24 md:pb-30 overflow-hidden">
     <div class="mb-4 text-sm text-gray-500" data-aos="fade-down" data-aos-delay="100">
-      <span>Home</span>
+      <router-link to="/" class="hover:text-black">Home</router-link>
       <span class="mx-2">></span>
-      <span>Product</span>
+      <span class="font-medium text-black">Collections</span>
     </div>
 
     <div class="flex flex-col md:flex-row -mx-4">
-      <!-- Filters Sidebar -->
+      
       <aside class="w-full md:w-1/4 px-4 mb-8 md:mb-0" data-aos="fade-right" data-aos-delay="200">
-        <div class="sticky top-8">
-          <div class="flex justify-between items-center mb-4">
+        <div class="sticky top-24"> <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-semibold">Filters</h2>
-            <button class="text-gray-500">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-6 w-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 6h16M4 12h16M4 18h7"
-                />
-              </svg>
+            <button 
+              @click="Object.assign(filters, { brand_id: '', category_id: '', sort: 'newest' })" 
+              class="text-xs text-red-500 hover:underline"
+            >
+              Reset
             </button>
           </div>
 
-          <!-- Brands Filter -->
           <div class="border-t py-4">
-            <h3 class="font-semibold mb-2">Brands</h3>
-            <div class="space-y-2">
+            <h3 class="font-semibold mb-3">Categories</h3>
+            <div class="space-y-2 max-h-48 overflow-y-auto">
               <div class="flex items-center">
-                <input
-                  type="checkbox"
-                  id="nike"
-                  class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <label for="nike" class="ml-3 text-sm text-gray-600">Nike</label>
+                <input type="radio" id="cat_all" value="" v-model="filters.category_id" class="h-4 w-4 text-black focus:ring-black border-gray-300">
+                <label for="cat_all" class="ml-3 text-sm text-gray-600 cursor-pointer">All Categories</label>
               </div>
-              <div class="flex items-center">
-                <input
-                  type="checkbox"
-                  id="pull-and-bear"
-                  class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <label for="pull-and-bear" class="ml-3 text-sm text-gray-600">Pull and Bear</label>
-              </div>
-              <div class="flex items-center">
-                <input
-                  type="checkbox"
-                  id="adidas"
-                  class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <label for="adidas" class="ml-3 text-sm text-gray-600">Adidas</label>
-              </div>
-              <div class="flex items-center">
-                <input
-                  type="checkbox"
-                  id="reebok"
-                  class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <label for="reebok" class="ml-3 text-sm text-gray-600">Rebook</label>
-              </div>
-              <div class="flex items-center">
-                <input
-                  type="checkbox"
-                  id="vans"
-                  class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <label for="vans" class="ml-3 text-sm text-gray-600">Vans</label>
+              <div v-for="cat in categories" :key="cat.id" class="flex items-center">
+                <input 
+                  type="radio" 
+                  :id="'cat_'+cat.id" 
+                  :value="cat.id" 
+                  v-model="filters.category_id"
+                  class="h-4 w-4 text-black focus:ring-black border-gray-300"
+                >
+                <label :for="'cat_'+cat.id" class="ml-3 text-sm text-gray-600 cursor-pointer">{{ cat.name }}</label>
               </div>
             </div>
           </div>
 
-          <!-- Price Filter -->
           <div class="border-t py-4">
-            <h3 class="font-semibold mb-2">Price</h3>
-            <div class="space-y-2">
+            <h3 class="font-semibold mb-3">Brands</h3>
+            <div class="space-y-2 max-h-48 overflow-y-auto">
               <div class="flex items-center">
-                <input
-                  type="radio"
-                  id="lowest-to-highest"
-                  name="price"
-                  class="h-4 w-4 border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <label for="lowest-to-highest" class="ml-3 text-sm text-gray-600"
-                  >Lowest to Highest</label
-                >
+                <input type="radio" id="brand_all" value="" v-model="filters.brand_id" class="h-4 w-4 text-black focus:ring-black border-gray-300">
+                <label for="brand_all" class="ml-3 text-sm text-gray-600 cursor-pointer">All Brands</label>
               </div>
-              <div class="flex items-center">
-                <input
-                  type="radio"
-                  id="highest-to-lowest"
-                  name="price"
-                  class="h-4 w-4 border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <label for="highest-to-lowest" class="ml-3 text-sm text-gray-600"
-                  >Highest to Lowest</label
+              <div v-for="brand in brands" :key="brand.id" class="flex items-center">
+                <input 
+                  type="radio" 
+                  :id="'brand_'+brand.id" 
+                  :value="brand.id" 
+                  v-model="filters.brand_id"
+                  class="h-4 w-4 text-black focus:ring-black border-gray-300"
                 >
+                <label :for="'brand_'+brand.id" class="ml-3 text-sm text-gray-600 cursor-pointer">{{ brand.name }}</label>
               </div>
             </div>
           </div>
 
-          <!-- Dress Style Filter -->
-          <div class="border-t py-4">
-            <h3 class="font-semibold mb-2">Dress Style</h3>
-            <div class="space-y-2">
-              <div class="flex items-center">
-                <input
-                  type="checkbox"
-                  id="casual"
-                  class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <label for="casual" class="ml-3 text-sm text-gray-600">Casual</label>
-              </div>
-              <div class="flex items-center">
-                <input
-                  type="checkbox"
-                  id="formal"
-                  class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <label for="formal" class="ml-3 text-sm text-gray-600">Formal</label>
-              </div>
-              <div class="flex items-center">
-                <input
-                  type="checkbox"
-                  id="party"
-                  class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <label for="party" class="ml-3 text-sm text-gray-600">Party</label>
-              </div>
-              <div class="flex items-center">
-                <input
-                  type="checkbox"
-                  id="gym"
-                  class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <label for="gym" class="ml-3 text-sm text-gray-600">Gym</label>
-              </div>
-            </div>
-          </div>
-          <button
-            class="w-full bg-black text-white py-2 rounded-lg mt-4 hover:bg-gray-800 transition-colors"
-          >
-            Apply Filter
-          </button>
         </div>
       </aside>
 
-      <!-- Products Grid -->
-      <div class="w-full md:w-3/4 px-4" data-aos="fade-left" data-aos-delay="200">
-        <div
-          class="flex flex-col sm:flex-row justify-between items-center mb-6"
-          data-aos="fade-up"
-          data-aos-delay="300"
-        >
-          <h1 class="text-3xl font-bold mb-4 sm:mb-0">Product</h1>
+      <div class="w-full md:w-3/4 px-4">
+        
+        <div class="flex flex-col sm:flex-row justify-between items-center mb-6" data-aos="fade-up" data-aos-delay="300">
+          <h1 class="text-3xl font-bold mb-4 sm:mb-0">All Products</h1>
           <div class="flex items-center text-sm text-gray-500">
-            <span>Showing 1-10 of 100 Products</span>
+            <span>Showing {{ products.length }} Items</span>
             <div class="ml-4">
-              <label for="sort-by" class="sr-only">Sort by</label>
-              <select id="sort-by" name="sort-by" class="border-gray-300 rounded-md">
-                <option>Most Popular</option>
-                <option>Newest</option>
-                <option>Price: Low to High</option>
-                <option>Price: High to Low</option>
+              <select v-model="filters.sort" class="border-gray-300 rounded-md text-sm focus:ring-black focus:border-black py-1">
+                <option value="newest">Newest Arrivals</option>
+                <option value="low_high">Price: Low to High</option>
+                <option value="high_low">Price: High to Low</option>
               </select>
             </div>
           </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-          <!-- Product Cards -->
+        <div v-if="isLoading" class="flex justify-center py-20">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-black"></div>
+        </div>
+
+        <div v-else-if="products.length === 0" class="text-center py-20 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+            <p class="text-gray-500 text-lg">No products found matching your filters.</p>
+            <button @click="Object.assign(filters, { brand_id: '', category_id: '' })" class="mt-4 text-blue-600 font-semibold hover:underline">Clear Filters</button>
+        </div>
+
+        <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
           <div
             v-for="(product, idx) in products"
             :key="product.id"
-            class="text-center"
-            :data-aos="'zoom-in'"
-            :data-aos-delay="100 + idx * 100"
+            class="group cursor-pointer"
+            :data-aos="'fade-up'"
+            :data-aos-delay="idx * 50"
+            @click="goToDetail(product.id)"
           >
-            <div class="bg-gray-100 rounded-lg p-4 mb-2 overflow-hidden">
-              <img
-                :src="product.image"
+            <div class="bg-gray-100 rounded-2xl relative overflow-hidden aspect-square mb-3">
+               <span 
+                class="absolute top-3 left-3 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider text-white shadow-sm z-10"
+                :class="product.condition >= 4 ? 'bg-black' : 'bg-orange-500'"
+               >
+                 {{ product.condition === 5 ? 'Like New' : 'Used' }}
+               </span>
+
+               <img
+                :src="product.image || 'https://via.placeholder.com/300'"
                 :alt="product.name"
-                class="w-full h-auto object-cover hover:scale-105 transition-transform duration-300"
-              />
+                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ease-out"
+               />
+
+               <div class="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                  <button class="bg-white text-black px-6 py-2 rounded-full font-bold text-sm shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-all duration-300">
+                    View Detail
+                  </button>
+               </div>
             </div>
-            <h3 class="font-semibold text-gray-800">{{ product.name }}</h3>
-            <div class="flex justify-center items-center my-1">
-              <div class="flex">
-                <svg
-                  v-for="i in 5"
-                  :key="i"
-                  class="w-4 h-4"
-                  :class="i <= product.rating ? 'text-yellow-400' : 'text-gray-300'"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
-                  ></path>
-                </svg>
-              </div>
-              <span class="text-xs text-gray-500 ml-1">{{ product.rating.toFixed(1) }}/5</span>
+
+            <div class="space-y-1">
+               <div class="flex justify-between items-start">
+                 <div>
+                    <h3 class="font-bold text-gray-900 text-lg leading-tight group-hover:text-blue-700 transition-colors">{{ product.name }}</h3>
+                    <p class="text-xs text-gray-500 uppercase tracking-wide">{{ product.brand_name }} • {{ product.category_name }}</p>
+                 </div>
+               </div>
+
+               <div class="flex items-center gap-1">
+                 <div class="flex text-yellow-400">
+                    <svg v-for="i in 5" :key="i" class="w-3.5 h-3.5" :class="i <= product.condition ? 'fill-current' : 'text-gray-300'" viewBox="0 0 20 20">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                 </div>
+                 <span class="text-xs text-gray-400">({{ product.condition }}/5 Cond.)</span>
+               </div>
+               
+               <p class="font-bold text-gray-900 text-lg">
+                 {{ formatRp(product.price) }}
+               </p>
             </div>
-            <p class="font-bold text-gray-900">
-              <span v-if="product.discountPrice" class="text-red-500"
-                >Rp.{{ product.discountPrice }}</span
-              >
-              <span
-                v-if="product.originalPrice && product.discountPrice"
-                class="text-gray-500 line-through ml-2"
-                >Rp.{{ product.originalPrice }}</span
-              >
-              <span v-if="!product.discountPrice">Rp.{{ product.originalPrice }}</span>
-              <span
-                v-if="product.discount"
-                class="bg-red-100 text-red-500 text-xs font-semibold ml-2 px-2 py-0.5 rounded"
-                >{{ product.discount }}</span
-              >
-            </p>
           </div>
         </div>
 
-        <!-- Pagination -->
-        <div class="flex justify-center items-center mt-8" data-aos="fade-up" data-aos-delay="400">
-          <button class="p-2 border rounded-md hover:bg-gray-100">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-5 w-5"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path
-                fill-rule="evenodd"
-                d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"
-                clip-rule="evenodd"
-              />
-            </svg>
-          </button>
-          <span class="px-4 py-2 bg-gray-900 text-white rounded-md mx-2">1</span>
-          <button class="p-2 border rounded-md hover:bg-gray-100">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-5 w-5"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path
-                fill-rule="evenodd"
-                d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-                clip-rule="evenodd"
-              />
-            </svg>
-          </button>
+        <div v-if="products.length > 0" class="flex justify-center mt-12 border-t border-gray-100 pt-8">
+            <span class="text-sm text-gray-400">Showing all available products</span>
         </div>
+
       </div>
     </div>
   </main>
 </template>
 
 <style scoped>
-/* Anda dapat menambahkan style scoped khusus di sini jika diperlukan */
-.sticky {
-  position: -webkit-sticky;
-  position: sticky;
-}
+/* Transisi halus */
 </style>

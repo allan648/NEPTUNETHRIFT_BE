@@ -1,43 +1,45 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "@/stores/authStore";
+
 // layouts
 import AppLayout from "@/layouts/AppLayout.vue";
 import AdminLayout from "@/layouts/AdminLayout.vue";
-import Accounts from "@/pages/admin/accounts/Accounts.vue";
-import Products from "@/pages/admin/products/Products.vue";
-import Transactions from "@/pages/admin/transactions/Transactions.vue";
-import Status from "@/pages/admin/status/Status.vue";
 import UserLayout from "@/layouts/UserLayout.vue";
-// Pages
+
+// Pages Public
 import Home from "@/pages/Home.vue";
 import ProductPage from "@/pages/Product.vue";
 import PromoPage from "@/pages/Promo.vue";
 import AboutPage from "@/pages/About.vue";
 import DetailProductPage from "@/pages/DetailProduct.vue";
+import Myorder from "@/pages/Myorder.vue";
+
 // User Profile
 import Profile from "@/pages/profile/Profile.vue";
 import Cart from "@/pages/profile/Cart.vue";
 import Wishlist from "@/pages/profile/Wishlist.vue";
 import Review from "@/pages/profile/Review.vue";
-import Myorder from "@/pages/Myorder.vue";
-// Admin
+
+// Admin Dashboard & Lists
 import Dashboard from "@/pages/admin/Dashboard.vue";
+import Accounts from "@/pages/admin/accounts/Accounts.vue";
 import AccountsList from "@/pages/admin/accounts/AccountLists.vue";
+import Products from "@/pages/admin/products/Products.vue";
+import ProductLists from "@/pages/admin/products/ProductLists.vue";
+import Transactions from "@/pages/admin/transactions/Transactions.vue";
+import TransactionLists from "@/pages/admin/transactions/TransactionLists.vue";
+import Status from "@/pages/admin/status/Status.vue";
+import StatusLists from "@/pages/admin/status/StatusLists.vue";
 import CategoryLists from "@/pages/admin/categories/CategoryLists.vue";
 import CommentLists from "@/pages/admin/comments/CommentLists.vue";
-import ProductLists from "@/pages/admin/products/ProductLists.vue";
-import TransactionLists from "@/pages/admin/transactions/TransactionLists.vue";
-import StatusLists from "@/pages/admin/status/StatusLists.vue";
-// Admin - account management
+
+// Admin - Create/Edit/Detail
 import CreateAdmin from "@/pages/admin/accounts/CreateAdmin.vue";
 import EditAdmin from "@/pages/admin/accounts/AccountEdit.vue";
 import DetailAccount from "@/pages/admin/accounts/AccountDetails.vue";
-// Admin - product management
 import CreateProduct from "@/pages/admin/products/AddProducts.vue";
 import EditProduct from "@/pages/admin/products/EditProducts.vue";
 import DetailProduct from "@/pages/admin/products/ProductDetails.vue";
-// Admin - category management
-
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -67,8 +69,9 @@ const router = createRouter({
           component: AboutPage,
         },
         {
-          path: "/detailproduct",
-          name: "DetailProduct",
+          // ✅ SUDAH BENAR: Dynamic Route untuk Detail Produk
+          path: "/detailproduct/:id", 
+          name: "DetailProduct", 
           component: DetailProductPage,
         },
         {
@@ -76,32 +79,15 @@ const router = createRouter({
           name: "MyOrder",
           component: Myorder,
         },
-        
-          {
-          path: 'user', // URL: /user
-          component: UserLayout,  // <--- PENTING! Ini wadah Sidebar-nya
+        {
+          path: 'user', 
+          component: UserLayout,
           meta: { requiresAuth: true },
           children: [
-            { 
-              path: 'profile', // URL: /user/profile
-              name: 'Profile', 
-              component: Profile 
-            },
-            { 
-              path: 'cart', // URL: /user/cart
-              name: 'Cart', 
-              component: Cart 
-            },
-            { 
-              path: 'wishlist', // URL: /user/wishlist
-              name: 'Wishlist', 
-              component: Wishlist 
-            },
-            { 
-              path: 'review', // URL: /user/review
-              name: 'Review', 
-              component: Review 
-            },
+            { path: 'profile', name: 'Profile', component: Profile },
+            { path: 'cart', name: 'Cart', component: Cart },
+            { path: 'wishlist', name: 'Wishlist', component: Wishlist },
+            { path: 'review', name: 'Review', component: Review },
           ],
         },
       ],
@@ -109,58 +95,30 @@ const router = createRouter({
     {
       path: "/admin",
       component: AdminLayout,
+      meta: { requiresAdmin: true }, // Menandai seluruh folder admin butuh akses admin
       children: [
-        // ... rute admin lainnya tetap sama
         { path: "dashboard", name: "Dashboard", component: Dashboard },
         {
           path: "accounts",
           component: Accounts,
           children: [
             { path: "", name: "Accounts", component: AccountsList },
-            {
-              path: "create", // URL akan menjadi /admin/accounts/create
-              name: "Createadmin",
-              component: CreateAdmin,
-            },
-            {
-              path: "edit",
-              name: "Editadmin",
-              component: EditAdmin,
-            },
-            {
-              path: "detail",
-              name: "Detailaccount",
-              component: DetailAccount,
-            },
+            { path: "create", name: "Createadmin", component: CreateAdmin },
+            { path: "edit", name: "Editadmin", component: EditAdmin },
+            { path: "detail", name: "Detailaccount", component: DetailAccount },
           ],
         },
         {
           path: "products",
           component: Products,
           children: [
-            { path: "", name: "Products", component: ProductLists },
-            {
-              path: "create",
-              name: "Createproduct",
-              component: CreateProduct,
-            },
-            {
-              path: "edit",
-              name: "Editproduct",
-              component: EditProduct,
-            },
-            {
-              path: "detail",
-              name: "Detailproduct",
-              component: DetailProduct,
-            },
+            { path: "", name: "Products", component: ProductLists }, // Nama 'Products' dipakai di redirect CreateProduct.vue
+            { path: "create", name: "Createproduct", component: CreateProduct },
+            { path: "edit", name: "Editproduct", component: EditProduct },
+            { path: "detail", name: "Detailproduct", component: DetailProduct },
           ],
         },
-        {
-          path: "categories",
-          name: "Categories",
-          component: CategoryLists,
-        },
+        { path: "categories", name: "Categories", component: CategoryLists },
         {
           path: "transactions",
           component: Transactions,
@@ -171,74 +129,45 @@ const router = createRouter({
           component: Status,
           children: [{ path: "", name: "Status", component: StatusLists }],
         },
-        {
-          path: "comments",
-          name: "Comments",
-          component: CommentLists,
-        },
+        { path: "comments", name: "Comments", component: CommentLists },
       ],
     },
-    
   ],
 });
 
+// --- SATU NAVIGASI GUARD (GABUNGAN) ---
 router.beforeEach(async (to, from, next) => {
-  const authStore = useAuthStore()
+  const authStore = useAuthStore();
 
-  // 1. Cek status login ke backend setiap kali pindah halaman
-  // (Agar saat di-refresh, status login tetap terbaca)
-  await authStore.checkAuth()
+  // 1. Cek status login terkini
+  await authStore.checkAuth();
 
-  // 2. Jika halaman tujuan butuh login (ada meta requiresAuth) 
-  // DAN user ternyata belum login (!isAuthenticated)
-  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    
-    // A. Buka Modal Login
-    authStore.openLoginModal()
-    
-    // B. Redirect paksa ke Halaman Utama (Dashboard)
-    next('/') 
-    
-  } else {
-    // Jika tidak butuh login ATAU sudah login, silakan lewat
-    next()
-  }
-})
-
-// ... imports di atas tetap sama ...
-
-router.beforeEach(async (to, from, next) => {
-  const authStore = useAuthStore()
-
-  // 1. Cek status login ke backend (PENTING: ini juga mengambil data 'role' terbaru)
-  await authStore.checkAuth()
-
-  // 2. --- PROTEKSI SPESIAL HALAMAN ADMIN ---
+  // 2. LOGIKA PROTEKSI ADMIN
+  // Cek apakah rute tujuan diawali dengan "/admin"
   if (to.path.startsWith('/admin')) {
     
-    // Kasus A: Belum Login sama sekali
+    // A. Belum Login -> Tendang ke Home + Buka Modal
     if (!authStore.isAuthenticated) {
-      authStore.openLoginModal() // Buka modal
-      return next('/') // Lempar ke Home
+      authStore.openLoginModal();
+      return next('/'); 
     }
 
-    // Kasus B: Sudah Login, TAPI Role-nya 'customer' (Bukan Admin)
-    // Pastikan di server.js dan authStore.js data 'role' sudah diambil
+    // B. Sudah Login TAPI bukan Admin -> Tendang ke Home + Alert
     if (authStore.user?.role !== 'admin') {
-      alert("⛔ Akses Ditolak! Anda bukan Administrator.")
-      return next('/') // Lempar ke Home
+      alert("⛔ Akses Ditolak! Halaman ini khusus Administrator.");
+      return next('/'); 
     }
   }
 
-  // 3. --- PROTEKSI HALAMAN USER BIASA (Cart, Profile, dll) ---
-  // Ini kode yang sudah Anda punya sebelumnya
+  // 3. LOGIKA PROTEKSI USER BIASA (Profile, Cart, dll)
+  // Cek jika rute butuh login (requiresAuth) tapi user belum login
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    authStore.openLoginModal()
-    return next('/') 
+    authStore.openLoginModal();
+    return next('/');
   }
 
-  // 4. Lolos semua pengecekan, silakan masuk
-  next()
-})
+  // 4. Lolos semua cek? Silakan masuk.
+  next();
+});
 
 export default router;

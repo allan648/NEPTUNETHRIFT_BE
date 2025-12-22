@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
 const cors = require('cors');
+const path = require('path');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const db = require('./db');
@@ -14,7 +15,7 @@ const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 // === MIDDLEWARE ===
 app.use(cors({ origin: CLIENT_URL, credentials: true }));
 app.use(express.json());
-app.use('/uploads', express.static('uploads')); // Akses folder gambar
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // Akses folder gambar
 
 app.use(session({
     secret: process.env.SESSION_SECRET || 'rahasia_negara',
