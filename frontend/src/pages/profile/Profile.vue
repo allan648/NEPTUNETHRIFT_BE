@@ -266,37 +266,7 @@ onUpdated(() => {
         data-aos="fade-up"
         data-aos-delay="500"
       >
-        <form @submit.prevent="changePassword">
-          <h2 class="text-xl font-bold text-gray-800 border-b border-gray-100 pb-4 mb-6">
-            Change Password
-          </h2>
-          
-          <div class="space-y-6">
-            <div>
-              <label class="block mb-2 text-sm font-semibold text-gray-700">Current Password</label>
-              <input v-model="passwords.current" type="password" class="block w-full rounded-xl border border-gray-400 px-4 py-3.5 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all duration-300" />
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label class="block mb-2 text-sm font-semibold text-gray-700">New Password</label>
-                <input v-model="passwords.new" type="password" class="block w-full rounded-xl border border-gray-400 px-4 py-3.5 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all duration-300" />
-              </div>
-              <div>
-                <label class="block mb-2 text-sm font-semibold text-gray-700">Confirm Password</label>
-                <input v-model="passwords.confirm" type="password" class="block w-full rounded-xl border border-gray-400 px-4 py-3.5 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all duration-300" />
-              </div>
-            </div>
-          </div>
-
-          <div class="mt-8 flex justify-end">
-            <button
-              type="submit"
-              class="rounded-xl bg-gray-900 px-8 py-3.5 text-sm font-bold text-white shadow-lg transition-all duration-300 hover:bg-black hover:shadow-xl hover:-translate-y-0.5 active:scale-95"
-            >
-              Update Password
-            </button>
-          </div>
-        </form>
+        
       </section>
     </div>
   </div>

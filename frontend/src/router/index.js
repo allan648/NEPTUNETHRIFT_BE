@@ -41,6 +41,10 @@ import CreateProduct from "@/pages/admin/products/AddProducts.vue";
 import EditProduct from "@/pages/admin/products/EditProducts.vue";
 import DetailProduct from "@/pages/admin/products/ProductDetails.vue";
 
+// Auth Pages
+import VerifyEmail from '@/components/auth/VerifyEmail.vue'
+import ResetPassword from '@/components/auth/ResetPassword.vue'
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -90,6 +94,17 @@ const router = createRouter({
             { path: 'review', name: 'Review', component: Review },
           ],
         },
+        {
+          path: '/verify-email',
+          name: 'verify-email',
+          component: VerifyEmail
+        },
+        // RUTE UNTUK RESET PASSWORD
+        {
+          path: '/reset-password',
+          name: 'reset-password',
+          component: ResetPassword
+        }
       ],
     },
     {
