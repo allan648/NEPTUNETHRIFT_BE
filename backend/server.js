@@ -9,6 +9,7 @@ const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const jwt = require('jsonwebtoken'); // <--- 1. JANGAN LUPA TAMBAHKAN INI
 const db = require('./db');
 const routes = require('./routes'); 
+const orderRoutes = require('./routes/client/orderRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -22,6 +23,7 @@ app.use(cookieParser());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(session({ secret: process.env.SESSION_SECRET || 'rahasia', resave: false, saveUninitialized: false }));
 app.use(passport.initialize());
+app.use('/api/orders', orderRoutes);
 // app.use(passport.session()); // Tidak wajib lagi karena kita override pakai JWT, tapi dibiarkan tidak apa-apa.
 
 // ... (Bagian Passport Strategy BIARKAN SAMA) ...

@@ -13,6 +13,7 @@ import PromoPage from "@/pages/Promo.vue";
 import AboutPage from "@/pages/About.vue";
 import DetailProductPage from "@/pages/DetailProduct.vue";
 import Myorder from "@/pages/Myorder.vue";
+import CheckoutView from "@/pages/CheckoutView.vue";
 
 // User Profile
 import Profile from "@/pages/profile/Profile.vue";
@@ -83,6 +84,13 @@ const router = createRouter({
           name: "MyOrder",
           component: Myorder,
         },
+
+        {
+          path: '/checkout',
+          name: 'checkout',
+          component: CheckoutView
+        },
+
         {
           path: 'user', 
           component: UserLayout,

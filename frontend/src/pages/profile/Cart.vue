@@ -30,7 +30,9 @@ const fetchCart = async () => {
   isLoading.value = true;
   try {
     const response = await axios.get(`${API_URL}/cart`);
-    cartItems.value = response.data.items;
+    // Pastikan backend mengembalikan struktur { items: [] } atau array langsung
+    // Sesuaikan baris di bawah jika respons backend berbeda (misal: response.data)
+    cartItems.value = response.data.items || response.data; 
     
     // Refresh animasi AOS setelah data dimuat
     nextTick(() => {
@@ -41,6 +43,7 @@ const fetchCart = async () => {
     console.error("Gagal load cart", error);
     // Jika sesi habis (401), lempar ke home/login
     if (error.response && error.response.status === 401) {
+        // Opsional: Beritahu user sesi habis
         router.push('/');
     }
   } finally {
@@ -89,15 +92,15 @@ const totalPrice = computed(() => {
   return cartItems.value.reduce((total, item) => total + (item.price * item.quantity), 0);
 });
 
-// 5. Checkout Dummy
+// 5. UPDATE: Proceed To Checkout
 const proceedToCheckout = () => {
-  if (cartItems.value.length === 0) return;
+  if (cartItems.value.length === 0) {
+      Swal.fire('Keranjang Kosong', 'Silakan belanja terlebih dahulu.', 'warning');
+      return;
+  }
   
-  Swal.fire({
-    title: 'Checkout',
-    text: 'Fitur Checkout akan segera hadir di modul selanjutnya!',
-    icon: 'info'
-  });
+  // ARAHKAN KE HALAMAN CHECKOUT (Pastikan route '/checkout' sudah ada)
+  router.push('/checkout');
 };
 
 // --- LIFECYCLE ---
@@ -116,8 +119,7 @@ onUpdated(() => {
 </script>
 
 <template>
-  <div class="w-full p-6 md:p-10 min-h-screen">
-    <div class="mx-auto max-w-4xl">
+  <div class="w-full p-6 md:p-10 min-h-screen pt-24"> <div class="mx-auto max-w-4xl">
       
       <div 
         class="flex items-center justify-between mb-8"
@@ -153,7 +155,7 @@ onUpdated(() => {
             <h2 class="text-lg font-bold text-gray-900 mb-1">{{ item.name }}</h2>
             
             <div class="flex items-center justify-center sm:justify-start gap-4 text-sm text-gray-500 mb-2">
-              <span class="bg-gray-100 px-2 py-0.5 rounded text-xs font-medium text-gray-600">Size: {{ item.size }}</span>
+              <span v-if="item.size" class="bg-gray-100 px-2 py-0.5 rounded text-xs font-medium text-gray-600">Size: {{ item.size }}</span>
               
               <span class="flex items-center gap-1 text-xs font-medium" 
                 :class="{
@@ -203,7 +205,7 @@ onUpdated(() => {
             </svg>
           </div>
           <p class="text-gray-500 text-lg font-medium">Keranjang kamu kosong.</p>
-          <router-link :to="{ name: 'Product' }" class="text-blue-600 font-semibold mt-2 inline-block hover:underline">Mulai Belanja</router-link>
+          <router-link to="/product" class="text-blue-600 font-semibold mt-2 inline-block hover:underline">Mulai Belanja</router-link>
         </div>
       </div>
 

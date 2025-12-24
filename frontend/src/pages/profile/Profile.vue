@@ -260,13 +260,11 @@ onUpdated(() => {
           </div>
         </form>
       </section>
-
       <section 
         class="bg-white border border-gray-200 rounded-2xl p-6 md:p-8 shadow-sm hover:shadow-md transition-shadow duration-300"
         data-aos="fade-up"
         data-aos-delay="500"
       >
-        
       </section>
     </div>
   </div>
