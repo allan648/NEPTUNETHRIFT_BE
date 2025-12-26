@@ -15,6 +15,12 @@ axios.defaults.withCredentials = true;
 app.use(createPinia());
 app.use(router);
 
+const midtransScript = document.createElement('script');
+midtransScript.src = 'https://app.sandbox.midtrans.com/snap/snap.js';
+// Baca Client Key dari .env Vite
+midtransScript.setAttribute('data-client-key', import.meta.env.VITE_MIDTRANS_CLIENT_KEY); 
+document.head.appendChild(midtransScript);
+
 // Mount the app
 app.mount("#app");
 

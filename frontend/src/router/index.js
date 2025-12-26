@@ -12,7 +12,7 @@ import ProductPage from "@/pages/Product.vue";
 import PromoPage from "@/pages/Promo.vue";
 import AboutPage from "@/pages/About.vue";
 import DetailProductPage from "@/pages/DetailProduct.vue";
-import Myorder from "@/pages/Myorder.vue";
+import MyOrderView from "@/pages/MyorderView.vue";
 import CheckoutView from "@/pages/CheckoutView.vue";
 
 // User Profile
@@ -80,9 +80,10 @@ const router = createRouter({
           component: DetailProductPage,
         },
         {
-          path: "/myorder",
-          name: "MyOrder",
-          component: Myorder,
+          path: '/myorder',
+          name: 'myorder',
+          component: MyOrderView,
+          meta: { requiresAuth: true } // (Opsional) Penanda butuh login
         },
 
         {

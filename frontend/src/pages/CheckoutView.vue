@@ -1,258 +1,310 @@
 <script setup>
-import { ref, reactive, onMounted, watch, computed } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
 import axios from 'axios';
 import Swal from 'sweetalert2';
-import { useRouter, onBeforeRouteLeave } from 'vue-router'; // Tambah onBeforeRouteLeave jika perlu
+import { useRouter } from 'vue-router';
 
 const router = useRouter();
-const isLoading = ref(false);
+// STATUS LOADING
+const isLoading = ref(true); 
+const isRetrying = ref(false); // Status sinkronisasi
+const retryCount = ref(0);     
+const isProcessing = ref(false); 
+
 const API_URL = "http://localhost:3000/api";
 axios.defaults.withCredentials = true;
 
-// Data Keranjang & User
-const cartItems = ref([]);
+// DATA
+const checkoutItems = ref([]); 
 const currentUser = ref(null);
 const useMyAddress = ref(true);
+const shippingCost = ref(0); 
 
 const form = reactive({
   recipient_name: '',
   recipient_phone: '',
   shipping_address: '',
-  shipping_city: ''
 });
 
-// --- FUNGSI UTAMA: AMBIL DATA (Dipisahkan agar bisa dipanggil ulang) ---
-const loadCheckoutData = async () => {
+// --- FUNGSI LOAD DATA (Smart Fetch) ---
+const fetchDataWithRetry = async (attempt = 1) => {
+    try {
+        const timestamp = new Date().getTime();
+        const cartRes = await axios.get(`${API_URL}/cart?_t=${timestamp}`);
+        const allItems = cartRes.data.items || cartRes.data;
+        const selected = allItems.filter(item => item.is_selected === 1 || item.is_selected === true);
+
+        // JIKA DATA ADA
+        if (selected.length > 0) {
+            checkoutItems.value = selected;
+            isLoading.value = false;
+            isRetrying.value = false;
+            return; 
+        } 
+        
+        // JIKA MASIH KOSONG (Retry Logic jika database lambat banget)
+        if (attempt <= 3) { 
+            console.log(`Data belum siap, mencoba lagi... (${attempt})`);
+            retryCount.value = attempt;
+            setTimeout(() => { fetchDataWithRetry(attempt + 1); }, 1000);
+        } else {
+            isLoading.value = false;
+            await Swal.fire({ icon: 'warning', title: 'Keranjang Kosong', text: 'Tidak ada barang yang dipilih.', confirmButtonText: 'Kembali' });
+            router.push('/user/cart');
+        }
+
+    } catch (error) {
+        if (error.response?.status === 401) router.push('/');
+    }
+};
+
+// --- ON MOUNTED (DENGAN TIMEOUT 2 DETIK) ---
+onMounted(async () => {
+  // 1. Ambil Profil User (Langsung)
   try {
-    // 1. Ambil Profil User
     const userRes = await axios.get(`${API_URL}/auth/status`);
     if (userRes.data.user) {
         currentUser.value = userRes.data.user;
-        // Hanya isi form otomatis jika user belum mengetik apa-apa (biar tidak menimpa ketikan user)
-        if (!form.recipient_name && useMyAddress.value) {
-            fillFormWithProfile();
-        }
+        fillFormWithProfile();
     }
+  } catch (e) { console.error("Skip profil loading"); }
 
-    // 2. AMBIL KERANJANG (DENGAN ANTI-CACHE)
-    // Trik: Tambahkan ?t=timestamp agar browser selalu minta data BARU ke server
-    const timestamp = new Date().getTime(); 
-    const cartRes = await axios.get(`${API_URL}/cart?_t=${timestamp}`); 
-    
-    // Update data
-    cartItems.value = cartRes.data.items || cartRes.data;
-
-  } catch (error) {
-    console.error("Gagal memuat data checkout:", error);
-  }
-};
-
-// --- LIFECYCLE ---
-onMounted(() => {
-    loadCheckoutData();
+  // 2. SET TIMEOUT 2 DETIK UNTUK REFRESH DATA KERANJANG
+  // Ini memberi waktu agar database selesai menyimpan centangan dari halaman sebelumnya
+  isRetrying.value = true; // Nyalakan pesan "Menyiapkan..."
+  
+  setTimeout(() => {
+      fetchDataWithRetry(1); // Panggil data setelah 2 detik
+  }, 2000); 
 });
 
-// --- COMPUTED & WATCHERS ---
-const cartTotal = computed(() => {
-    return cartItems.value.reduce((total, item) => {
-        return total + (item.price * item.quantity);
-    }, 0);
+// --- COMPUTED ---
+const subTotalProduk = computed(() => {
+    return checkoutItems.value.reduce((total, item) => total + (item.price * item.quantity), 0);
 });
 
+const totalPayment = computed(() => {
+    return subTotalProduk.value + shippingCost.value + 1000; 
+});
+
+// --- HELPERS ---
 const fillFormWithProfile = () => {
     if (currentUser.value) {
         form.recipient_name = currentUser.value.username || ''; 
         form.recipient_phone = currentUser.value.phone || '';   
         form.shipping_address = currentUser.value.address || ''; 
-        form.shipping_city = currentUser.value.city || '';       
     }
 };
 
 const clearForm = () => {
-    form.recipient_name = '';
-    form.recipient_phone = '';
-    form.shipping_address = '';
-    form.shipping_city = '';
+    form.recipient_name = ''; form.recipient_phone = ''; form.shipping_address = '';
 };
 
-watch(useMyAddress, (isUsingProfile) => {
-    if (isUsingProfile) {
-        fillFormWithProfile();
-    } else {
-        clearForm();
-    }
-});
+const toggleAddressMode = () => {
+    useMyAddress.value = !useMyAddress.value;
+    if (useMyAddress.value) fillFormWithProfile(); else clearForm();
+};
 
-// --- HANDLE CHECKOUT ---
-const handleCheckout = async () => {
-    if (!form.recipient_name || !form.shipping_address || !form.recipient_phone || !form.shipping_city) {
-        Swal.fire({ icon: 'warning', title: 'Alamat Belum Lengkap', text: 'Mohon lengkapi semua data pengiriman.' });
+const formatRp = (price) => {
+  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(price);
+};
+
+// --- CREATE ORDER ---
+const handleCreateOrder = async () => {
+    // 1. Validasi Input (Sudah Benar)
+    if (!form.recipient_name || !form.shipping_address || !form.recipient_phone) {
+        Swal.fire({ icon: 'warning', title: 'Alamat Belum Lengkap', text: 'Mohon lengkapi Nama, Telepon, dan Alamat.' });
         return;
     }
 
-    if (cartItems.value.length === 0) {
-        Swal.fire('Keranjang Kosong', 'Belanja dulu yuk!', 'warning');
-        return;
-    }
-
-    isLoading.value = true;
+    isProcessing.value = true;
 
     try {
+        // 2. Request ke Backend untuk Buat Order & Dapat Token
         const response = await axios.post(`${API_URL}/orders`, {
             recipient_name: form.recipient_name,
             recipient_phone: form.recipient_phone,
             shipping_address: form.shipping_address,
-            shipping_city: form.shipping_city
+            shipping_city: "-", 
+            note: "" 
         });
 
-        const newOrderId = response.data.order_id;
-        
-        await Swal.fire({
-            icon: 'success',
-            title: 'Pesanan Dibuat!',
-            text: 'Mengarahkan ke pembayaran...',
-            timer: 1500,
-            showConfirmButton: false
-        });
+        // 3. AMBIL TOKENNYA
+        const snapToken = response.data.snap_token;
 
-        router.push('/my-order'); 
+        // 4. CEK: Apakah Tokennya Ada?
+        if (snapToken) {
+            
+            // --- INI BAGIAN YANG HILANG DI KODE KAMU ---
+            // Kita panggil popup Midtrans menggunakan token tadi
+            
+            window.snap.pay(snapToken, {
+                // A. Jika Pembayaran SUKSES
+                onSuccess: function(result) {
+                    Swal.fire('Berhasil!', 'Pembayaran sukses diterima.', 'success');
+                    router.push('/myorder'); // Baru pindah halaman di sini
+                },
+                
+                // B. Jika Pembayaran PENDING (Misal pilih ATM/Indomaret tapi belum bayar)
+                onPending: function(result) {
+                    Swal.fire('Menunggu Pembayaran', 'Silakan selesaikan pembayaran Anda.', 'info');
+                    router.push('/myorder'); // Pindah halaman
+                },
+                
+                // C. Jika Pembayaran GAGAL
+                onError: function(result) {
+                    Swal.fire('Gagal', 'Pembayaran gagal atau dibatalkan.', 'error');
+                    router.push('/myorder'); // Pindah halaman
+                },
+                
+                // D. Jika User MENUTUP Popup (Klik tombol silang X)
+                onClose: function() {
+                    Swal.fire('Pembayaran Tertunda', 'Anda bisa membayar nanti lewat menu Pesanan.', 'warning');
+                    router.push('/myorder'); // Pindah halaman
+                }
+            });
+
+        } else {
+            // Jaga-jaga kalau backend tidak kirim token (jarang terjadi)
+            router.push('/myorder');
+        }
 
     } catch (error) {
         console.error(error);
-        Swal.fire({
-            icon: 'error',
-            title: 'Gagal Checkout',
-            text: error.response?.data?.message || 'Terjadi kesalahan server.',
-        });
+        Swal.fire({ icon: 'error', title: 'Gagal', text: error.response?.data?.message || 'Terjadi kesalahan.' });
     } finally {
-        isLoading.value = false;
+        isProcessing.value = false;
     }
 };
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 font-sans mt-16">
-    <div class="max-w-7xl mx-auto">
-      <h1 class="text-3xl font-bold text-gray-900 mb-8 text-center sm:text-left">Checkout Pengiriman</h1>
+  <div class="min-h-screen bg-gray-50 font-sans pb-20">
+    
+    <div class="bg-white shadow-sm sticky top-0 z-40 border-b border-gray-200">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex items-center gap-4">
+            <h1 class="text-xl text-blue-900 font-bold border-r border-gray-300 pr-4">NeptuneThrift</h1>
+            <span class="text-lg text-gray-700">Checkout</span>
+        </div>
+    </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+    <div v-if="isLoading" class="flex flex-col items-center justify-center py-32 h-[80vh]">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-900 mb-6"></div>
         
-        <div class="lg:col-span-7">
-            <div class="bg-white rounded-2xl shadow-sm p-6 sm:p-8">
-                <h2 class="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-                    📍 Alamat Tujuan
-                </h2>
+        <h2 v-if="isRetrying" class="text-lg font-bold text-blue-900 animate-pulse transition-all">
+           Sinkronisasi data keranjang...
+        </h2>
+        <p v-if="isRetrying" class="text-sm text-gray-500 mt-2">Mohon tunggu sebentar.</p>
+        
+        <h2 v-else class="text-lg font-bold text-gray-700">Memuat Checkout...</h2>
+    </div>
 
-                <div class="mb-6 bg-blue-50 p-4 rounded-xl border border-blue-100 flex items-start sm:items-center gap-3">
-                    <input 
-                        type="checkbox" 
-                        id="toggleAddress" 
-                        v-model="useMyAddress"
-                        class="w-5 h-5 mt-1 sm:mt-0 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+    <div v-else class="max-w-6xl mx-auto px-4 mt-6 space-y-4">
+        
+        <div class="bg-white shadow-sm rounded-sm overflow-hidden relative p-6">
+            <div class="absolute top-0 left-0 w-full h-[3px] bg-[repeating-linear-gradient(45deg,#EA5455,#EA5455_30px,#fff_30px,#fff_40px,#004C8C,#004C8C_70px,#fff_70px,#fff_80px)]"></div>
+            
+            <div class="flex items-center gap-2 mb-4 text-blue-900 font-bold text-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" /></svg>
+                Alamat Pengiriman
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                 <div>
+                    <label class="block text-gray-500 text-xs font-bold uppercase mb-1">Nama Penerima</label>
+                    <input v-model="form.recipient_name" type="text" class="w-full bg-gray-50 border border-gray-200 rounded p-2 focus:bg-white focus:border-blue-500 outline-none transition-colors" placeholder="Nama Lengkap">
+                 </div>
+                 <div>
+                    <label class="block text-gray-500 text-xs font-bold uppercase mb-1">No. Handphone</label>
+                    <input v-model="form.recipient_phone" type="text" class="w-full bg-gray-50 border border-gray-200 rounded p-2 focus:bg-white focus:border-blue-500 outline-none transition-colors" placeholder="08xx">
+                 </div>
+                 <div class="md:col-span-2">
+                    <label class="block text-gray-500 text-xs font-bold uppercase mb-1">Alamat Lengkap</label>
+                    <textarea 
+                        v-model="form.shipping_address" 
+                        rows="3" 
+                        class="w-full bg-gray-50 border border-gray-200 rounded p-2 focus:bg-white focus:border-blue-500 outline-none transition-colors" 
+                        placeholder="Nama Jalan, Gedung, No. Rumah, Kelurahan, Kecamatan, Kota, Kode Pos"
+                    ></textarea>
+                 </div>
+            </div>
+            
+            <button @click="toggleAddressMode" class="mt-4 text-xs text-blue-600 font-bold uppercase tracking-wide hover:underline border border-blue-600 px-3 py-1 rounded hover:bg-blue-50 transition-colors">
+                {{ useMyAddress ? 'Input Manual' : 'Gunakan Data Profil' }}
+            </button>
+        </div>
+
+        <div class="bg-white shadow-sm rounded-sm p-6">
+            <div class="hidden md:flex items-center text-sm text-gray-500 mb-4 pb-2 border-b">
+                <div class="w-1/2">Produk Dipesan</div>
+                <div class="w-1/6 text-center">Harga Satuan</div>
+                <div class="w-1/6 text-center">Jumlah</div>
+                <div class="w-1/6 text-right">Subtotal Produk</div>
+            </div>
+
+            <div v-for="item in checkoutItems" :key="item.cart_id" class="flex flex-col md:flex-row items-center gap-4 py-4 border-b border-gray-100 last:border-0">
+                <div class="w-full md:w-1/2 flex items-center gap-3">
+                    <img :src="item.image || 'https://via.placeholder.com/150'" class="w-14 h-14 object-cover rounded border">
+                    <div>
+                        <p class="line-clamp-1 font-medium text-gray-800">{{ item.name }}</p>
+                        <p class="text-xs text-gray-500">Variasi: {{ item.size || 'All Size' }}</p>
+                    </div>
+                </div>
+                <div class="w-full md:w-1/6 text-center text-gray-600 text-sm hidden md:block">
+                    {{ formatRp(item.price) }}
+                </div>
+                <div class="w-full md:w-1/6 text-center text-gray-600 text-sm hidden md:block">
+                    {{ item.quantity }}
+                </div>
+                <div class="w-full md:w-1/6 text-right font-bold text-gray-800">
+                    {{ formatRp(item.price * item.quantity) }}
+                </div>
+            </div>
+
+            <div class="border-t border-dashed border-gray-200 mt-4 pt-4 flex flex-col md:flex-row md:items-center justify-end gap-4">
+                <div class="flex items-center justify-between md:justify-end gap-6 md:w-1/3">
+                    <span class="text-sm text-green-600 font-medium bg-green-50 px-2 py-1 rounded">Opsi Pengiriman: Reguler</span>
+                    <span class="text-sm font-bold text-gray-800">{{ shippingCost === 0 ? 'Rp 0 (Promo)' : formatRp(shippingCost) }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white shadow-sm rounded-sm p-6 mb-10">
+            <div class="flex flex-col md:flex-row justify-between items-start gap-8 border-b border-gray-200 pb-6 mb-6">
+                <div class="w-full md:w-1/2">
+                    <h3 class="font-bold text-gray-800 mb-3 text-sm uppercase tracking-wide">Metode Pembayaran</h3>
+                    <div class="flex gap-3">
+                        <button class="px-4 py-2 border border-blue-600 bg-blue-50 text-blue-700 font-semibold text-sm rounded transition-all shadow-sm">Transfer Bank</button>
+                        <button class="px-4 py-2 border border-gray-200 text-gray-400 font-medium text-sm rounded cursor-not-allowed" disabled>COD (Nonaktif)</button>
+                    </div>
+                </div>
+
+                <div class="w-full md:w-1/3 space-y-2">
+                    <div class="flex justify-between text-sm text-gray-600"><span>Subtotal Produk</span><span>{{ formatRp(subTotalProduk) }}</span></div>
+                    <div class="flex justify-between text-sm text-gray-600"><span>Total Ongkos Kirim</span><span>{{ formatRp(shippingCost) }}</span></div>
+                    <div class="flex justify-between text-sm text-gray-600"><span>Biaya Layanan</span><span>Rp 1.000</span></div>
+                    <div class="flex justify-between text-lg font-bold text-gray-800 pt-2 border-t mt-2">
+                        <span>Total Pembayaran</span>
+                        <span class="text-2xl text-blue-900">{{ formatRp(totalPayment) }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-col items-end gap-4">
+                <div class="w-full border-t border-dashed border-gray-200"></div>
+                <div class="flex items-center justify-end gap-6 pt-2">
+                    <button 
+                        @click="handleCreateOrder"
+                        :disabled="isProcessing"
+                        class="bg-blue-900 text-white font-bold py-3 px-12 text-lg rounded shadow-lg hover:bg-blue-800 transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
-                    <label for="toggleAddress" class="text-gray-700 font-medium cursor-pointer select-none text-sm sm:text-base">
-                        Gunakan data dari Profil Saya (Auto-fill)
-                        <p class="text-xs text-gray-500 font-normal mt-1">Uncheck jika ingin mengirim ke alamat lain / kado.</p>
-                    </label>
+                        <span v-if="isProcessing" class="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                        <span v-else>Buat Pesanan</span>
+                    </button>
                 </div>
-
-                <form @submit.prevent="handleCheckout" class="space-y-5">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Nama Penerima</label>
-                            <input v-model="form.recipient_name" type="text" class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-100 outline-none" placeholder="Nama Lengkap" required>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Nomor HP</label>
-                            <input v-model="form.recipient_phone" type="tel" class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-100 outline-none" placeholder="Contoh: 0812..." required>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Kota / Kabupaten</label>
-                        <input v-model="form.shipping_city" type="text" class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-100 outline-none" placeholder="Contoh: Jakarta Selatan" required>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Alamat Lengkap</label>
-                        <textarea v-model="form.shipping_address" rows="3" class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-100 outline-none" placeholder="Jalan, Nomor Rumah, RT/RW, Kecamatan..." required></textarea>
-                    </div>
-                </form>
             </div>
         </div>
 
-        <div class="lg:col-span-5">
-            <div class="bg-white rounded-2xl shadow-sm p-6 sm:p-8 sticky top-24">
-                <h2 class="text-xl font-bold text-gray-800 mb-6">Ringkasan Pesanan</h2>
-
-                <div class="space-y-4 mb-6 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                    
-                    <div v-if="cartItems.length === 0" class="text-center py-4 text-gray-500 italic">
-                        Keranjang kosong...
-                    </div>
-
-                    <div v-for="item in cartItems" :key="item.id" class="flex gap-4 items-center">
-                        <div class="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
-                            <img 
-                                :src="item.image || 'https://via.placeholder.com/150'" 
-                                :alt="item.name" 
-                                class="w-full h-full object-cover mix-blend-multiply"
-                            >
-                        </div>
-                        
-                        <div class="flex-grow">
-                            <h4 class="text-sm font-bold text-gray-800 line-clamp-2">{{ item.name }}</h4>
-                            <p v-if="item.size" class="text-xs text-gray-500 mt-0.5">Size: {{ item.size }}</p>
-                            <p class="text-xs text-gray-500">Jumlah: {{ item.quantity }}x</p>
-                        </div>
-
-                        <div class="text-sm font-semibold text-gray-900">
-                            Rp {{ (item.price * item.quantity).toLocaleString('id-ID') }}
-                        </div>
-                    </div>
-                </div>
-
-                <div class="border-t border-dashed border-gray-300 my-4"></div>
-
-                <div class="flex justify-between items-center mb-8">
-                    <span class="text-lg font-bold text-gray-600">Total Tagihan</span>
-                    <span class="text-2xl font-extrabold text-blue-700">Rp {{ cartTotal.toLocaleString('id-ID') }}</span>
-                </div>
-
-                <button 
-                    @click="handleCheckout" 
-                    :disabled="isLoading || cartItems.length === 0"
-                    class="w-full bg-blue-900 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-800 transition-all shadow-lg shadow-blue-900/20 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
-                >
-                    <span v-if="isLoading">
-                        <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    </span>
-                    <span v-else>Buat Pesanan</span>
-                </button>
-
-                <p class="text-xs text-gray-400 text-center mt-4">
-                    Dengan membuat pesanan, Anda menyetujui Syarat & Ketentuan kami.
-                </p>
-            </div>
-        </div>
-
-      </div>
     </div>
   </div>
 </template>
-
-<style scoped>
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: #f1f1f1;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 10px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
-}
-</style>

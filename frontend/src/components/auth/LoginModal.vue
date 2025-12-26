@@ -43,7 +43,7 @@
           <button
             type="button"
             class="flex items-center justify-center w-full gap-3 border border-gray-300 rounded-full py-2 px-4 mb-4 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-100"
-            @click="emit('google-login')"
+            @click="handleGoogleLogin"
           >
             <img
               src="https://www.svgrepo.com/show/475656/google-color.svg"
@@ -133,8 +133,9 @@
     </div>
   </transition>
 </template>
+
 <script setup>
-import { ref, reactive } from "vue"; // Pastikan import reactive
+import { ref, reactive } from "vue";
 import LogoFootWear from "@/asset/images/Footwear.png";
 import axios from 'axios';
 import Swal from 'sweetalert2';
@@ -146,75 +147,15 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["close", "login-success", "signup-success", "google-login"]);
+const emit = defineEmits(["close", "login-success", "signup-success"]);
 
-const isForgotPasswordMode = ref(false); 
-const forgotEmail = ref("");
-
-// --- PERBAIKAN 3: Gunakan reactive 'form' untuk menyimpan email, password, confirmPassword ---
-const handleForgotPassword = async () => {
-  // 1. Cek apakah kolom email Login sudah diisi?
-  if (!form.email) {
-     Swal.fire({
-        icon: 'warning',
-        title: 'Email Kosong',
-        text: 'Silakan isi alamat email Anda di kolom login terlebih dahulu.',
-        confirmButtonColor: '#000'
-     });
-     return;
-  }
-  
-  // 2. Konfirmasi Dulu (Biar user gak kepencet)
-  const result = await Swal.fire({
-     title: 'Reset Password?',
-     text: `Kami akan mengirimkan link reset password ke: ${form.email}`,
-     icon: 'question',
-     showCancelButton: true,
-     confirmButtonColor: '#1d4ed8',
-     cancelButtonColor: '#d33',
-     confirmButtonText: 'Ya, Kirim Link',
-     cancelButtonText: 'Batal'
-  });
-
-  // Jika user klik Batal, berhenti
-  if (!result.isConfirmed) return;
-
-  isLoading.value = true;
-  
-  try {
-     const API_URL = "http://localhost:3000/api/auth";
-     
-     // Kirim form.email (email yang ada di input login)
-     await axios.post(`${API_URL}/forgot-password`, { email: form.email });
-     
-     Swal.fire({
-        icon: 'success',
-        title: 'Email Terkirim',
-        text: 'Cek kotak masuk (atau spam) email Anda untuk link reset password.',
-     });
-     
-  } catch (error) {
-     Swal.fire({
-        icon: 'error',
-        title: 'Gagal',
-        text: error.response?.data?.message || 'Email tidak ditemukan.',
-     });
-  } finally {
-     isLoading.value = false;
-  }
-};
-// --- PERBAIKAN 1: Buat Object 'form' (bukan ref terpisah) ---
+// --- STATE ---
 const form = reactive({
   email: "",
   password: "",
 });
-
-// Variable tambahan untuk Signup
 const confirmPassword = ref("");
-
-// --- PERBAIKAN 2: Definisi isLoading ---
 const isLoading = ref(false);
-
 const isSignIn = ref(true); 
 const API_URL = "http://localhost:3000/api/auth";
 
@@ -222,139 +163,126 @@ axios.defaults.withCredentials = true;
 
 const closeModal = () => emit("close");
 
+// --- GOOGLE LOGIN ---
+const handleGoogleLogin = () => {
+  // Redirect Browser ke Backend Google Auth
+  // Pastikan Backend Anda melayani route GET /api/auth/google
+  window.location.href = `${API_URL}/google`;
+};
+
+// --- MANUAL LOGIN ---
 const handleLogin = async () => {
-  // 1. Validasi Input Kosong
   if (!form.email || !form.password) {
-     Swal.fire({
-        icon: 'warning',
-        title: 'Input Kosong',
-        text: 'Mohon isi Email dan Password.',
-        confirmButtonColor: '#000'
-     });
+     Swal.fire({ icon: 'warning', title: 'Input Kosong', text: 'Mohon isi Email dan Password.' });
      return;
   }
 
   isLoading.value = true;
 
   try {
-    // 2. Kirim Request Login
     const response = await axios.post(`${API_URL}/login`, {
       email: form.email,
       password: form.password
-    }, { withCredentials: true });
+    });
 
-    // 3. AMBIL USERNAME
     const username = response.data.user?.username || 'User';
 
-    // 4. TAMPILKAN SWEETALERT SUKSES
     Swal.fire({
       icon: 'success',
       title: `Selamat Datang, ${username}!`,
-      text: 'Login berhasil. Selamat berbelanja!',
+      text: 'Login berhasil.',
       showConfirmButton: false,
-      timer: 2000
+      timer: 1500
     });
 
-    // 5. Proses Data Login
     emit('login-success'); 
     emit('close'); 
-    
-    // Reset form
-    form.email = '';
-    form.password = '';
+    resetForm();
 
   } catch (error) {
     console.error("Login Error:", error);
-
-    // 6. TANGKAP PESAN ERROR
-    const pesanError = error.response?.data?.message || "Terjadi kesalahan pada server.";
-
-    // 7. TAMPILKAN SWEETALERT ERROR
-    Swal.fire({
-      icon: 'error',
-      title: 'Gagal Masuk',
-      text: pesanError,
-      confirmButtonColor: '#d33'
-    });
-
+    const pesanError = error.response?.data?.message || "Email atau password salah.";
+    Swal.fire({ icon: 'error', title: 'Gagal Masuk', text: pesanError });
   } finally {
     isLoading.value = false;
   }
 };
+
+// --- MANUAL SIGNUP ---
 const handleSignUp = async () => {
-  // 1. Cek Kesamaan Password
-  if (password.value !== confirmPassword.value) {
-    Swal.fire({
-        icon: 'warning',
-        title: 'Password Tidak Sama',
-        text: 'Pastikan konfirmasi password sesuai!',
-    });
+  // PERBAIKAN: Gunakan form.password & confirmPassword.value
+  if (form.password !== confirmPassword.value) {
+    Swal.fire({ icon: 'warning', title: 'Password Tidak Sama', text: 'Konfirmasi password tidak cocok!' });
     return;
   }
   
-  // 2. Validasi Email & Password kosong
-  if (!email.value || !password.value) {
-     Swal.fire({
-        icon: 'warning',
-        title: 'Data Belum Lengkap',
-        text: 'Email dan Password wajib diisi.',
-    });
+  if (!form.email || !form.password) {
+     Swal.fire({ icon: 'warning', title: 'Data Belum Lengkap', text: 'Email dan Password wajib diisi.' });
     return;
   }
 
   try {
-    const API_URL = "http://localhost:3000/api/auth";
-
-    // 3. Kirim HANYA Email & Password (Username diurus backend)
+    isLoading.value = true;
+    // PERBAIKAN: Gunakan form.email & form.password
     const response = await axios.post(`${API_URL}/signup`, {
-      email: email.value,
-      password: password.value,
-      // confirmPassword tidak perlu dikirim ke backend, cuma validasi frontend
+      email: form.email,
+      password: form.password,
     });
 
-    console.log("Sign up success:", response.data);
-    
-    // Emit sukses (jika ada logic parent)
     emit("signup-success", response.data);
     
-    // 4. Notifikasi Sukses
     Swal.fire({
         icon: 'success',
         title: 'Registrasi Berhasil!',
-        text: 'Username default Anda telah dibuat. Silakan login.',
+        text: 'Silakan login dengan akun baru Anda.',
         showConfirmButton: false,
         timer: 2000
     });
 
-    // Reset Form
     resetForm();
-    
-    // Switch ke tampilan Login
-    isSignIn.value = true;
+    isSignIn.value = true; // Pindah ke tab Login
 
   } catch (error) {
-    // 5. Handling Error yang Lebih Aman
-    console.error("Sign up failed object:", error);
-    
-    // Ambil pesan error dari backend (biasanya .message bukan .error)
-    const errorMsg = error.response?.data?.message || error.response?.data?.error || "Pendaftaran gagal.";
-    
-    Swal.fire({
-        icon: 'error',
-        title: 'Gagal Daftar',
-        text: errorMsg
-    });
+    console.error("Sign up failed:", error);
+    const errorMsg = error.response?.data?.message || "Pendaftaran gagal.";
+    Swal.fire({ icon: 'error', title: 'Gagal Daftar', text: errorMsg });
+  } finally {
+    isLoading.value = false;
   }
 };
 
-const handleGoogleLogin = () => {
-  // Arahkan browser user langsung ke endpoint backend untuk Google Auth
-  window.location.href = `${API_URL}/google`;
+// --- FORGOT PASSWORD ---
+const handleForgotPassword = async () => {
+  if (!form.email) {
+     Swal.fire({ icon: 'warning', title: 'Email Kosong', text: 'Isi email di kolom login dulu.' });
+     return;
+  }
+  
+  const result = await Swal.fire({
+     title: 'Reset Password?',
+     text: `Kirim link reset ke: ${form.email}?`,
+     icon: 'question',
+     showCancelButton: true,
+     confirmButtonText: 'Ya, Kirim',
+     cancelButtonText: 'Batal'
+  });
+
+  if (!result.isConfirmed) return;
+
+  isLoading.value = true;
+  try {
+     await axios.post(`${API_URL}/forgot-password`, { email: form.email });
+     Swal.fire({ icon: 'success', title: 'Email Terkirim', text: 'Cek inbox/spam email Anda.' });
+  } catch (error) {
+     Swal.fire({ icon: 'error', title: 'Gagal', text: error.response?.data?.message || 'Email tidak ditemukan.' });
+  } finally {
+     isLoading.value = false;
+  }
 };
 
 const resetForm = () => {
-  email.value = "";
-  password.value = "";
+  form.email = "";
+  form.password = "";
   confirmPassword.value = "";
 };
 </script>
@@ -367,14 +295,8 @@ const resetForm = () => {
 
 <style scoped>
 @keyframes scaleIn {
-  0% {
-    transform: scale(0.8);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
+  0% { transform: scale(0.8); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 .modal-fade-enter-active,

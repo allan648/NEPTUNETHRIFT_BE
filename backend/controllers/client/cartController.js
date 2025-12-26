@@ -1,13 +1,12 @@
 const db = require('../../db');
 
-// 1. Tambah ke Keranjang
+// 1. TAMBAH KE KERANJANG
 const addToCart = async (req, res) => {
-    // User ID didapat dari Middleware Auth (req.user)
     const user_id = req.user.id; 
     const { product_id } = req.body;
 
     try {
-        // Cek apakah barang sudah ada di keranjang user ini?
+        // Cek apakah barang sudah ada?
         const [existing] = await db.query(
             "SELECT * FROM carts WHERE user_id = ? AND product_id = ?",
             [user_id, product_id]
@@ -17,9 +16,9 @@ const addToCart = async (req, res) => {
             return res.status(400).json({ message: "Produk sudah ada di keranjang!" });
         }
 
-        // Karena Thrift (barang unik), quantity otomatis 1
+        // Masukkan barang (Default quantity = 1, Default is_selected = 1 / Tercentang)
         await db.query(
-            "INSERT INTO carts (user_id, product_id, quantity) VALUES (?, ?, 1)",
+            "INSERT INTO carts (user_id, product_id, quantity, is_selected) VALUES (?, ?, 1, 1)",
             [user_id, product_id]
         );
 
@@ -31,24 +30,35 @@ const addToCart = async (req, res) => {
     }
 };
 
-// 2. Lihat Isi Keranjang
+// 2. LIHAT KERANJANG (GET)
 const getMyCart = async (req, res) => {
     const user_id = req.user.id;
 
     try {
-        // Join ke tabel products untuk dapat nama, harga, dan gambar
+        // PERBAIKAN PENTING: Ambil kolom 'c.is_selected'
         const query = `
-            SELECT c.id as cart_id, c.quantity, p.id as product_id, p.name, p.price, p.image, p.size, p.condition 
+            SELECT 
+                c.id as cart_id, 
+                c.quantity, 
+                c.is_selected, 
+                p.id as product_id, 
+                p.name, 
+                p.price, 
+                p.image, 
+                p.size, 
+                p.condition 
             FROM carts c
             JOIN products p ON c.product_id = p.id
             WHERE c.user_id = ?
         `;
         const [items] = await db.query(query, [user_id]);
 
-        // Hitung Total Harga
+        // Hitung Total (Hanya yang dicentang / is_selected = 1)
         let totalPrice = 0;
         items.forEach(item => {
-            totalPrice += item.price * item.quantity;
+            if (item.is_selected === 1) {
+                totalPrice += item.price * item.quantity;
+            }
         });
 
         res.json({ items, totalPrice });
@@ -59,23 +69,41 @@ const getMyCart = async (req, res) => {
     }
 };
 
-// 3. Hapus Item dari Keranjang
+// 3. UPDATE STATUS CENTANG (CHECKBOX)
+// Fungsi ini HANYA UPDATE, TIDAK MENGHAPUS DATA.
+const updateCartItem = async (req, res) => {
+    const userId = req.user.id;
+    const cartId = req.params.id;
+    const { is_selected } = req.body; // Menerima true/false dari Frontend
+
+    try {
+        await db.query(
+            "UPDATE carts SET is_selected = ? WHERE id = ? AND user_id = ?",
+            [is_selected ? 1 : 0, cartId, userId]
+        );
+        res.json({ message: "Status checklist diperbarui" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Gagal update status item" });
+    }
+};
+
+// 4. HAPUS ITEM (TOMBOL SAMPAH)
 const deleteCartItem = async (req, res) => {
     const user_id = req.user.id;
     const cart_id = req.params.id;
 
     try {
-        // Pastikan yang dihapus adalah milik user yang login
         const [result] = await db.query(
             "DELETE FROM carts WHERE id = ? AND user_id = ?",
             [cart_id, user_id]
         );
 
         if (result.affectedRows === 0) {
-            return res.status(404).json({ error: "Item tidak ditemukan atau bukan milik Anda" });
+            return res.status(404).json({ error: "Item tidak ditemukan" });
         }
 
-        res.json({ message: "Item dihapus dari keranjang" });
+        res.json({ message: "Item dihapus permanen dari keranjang" });
 
     } catch (error) {
         console.error(error);
@@ -83,4 +111,4 @@ const deleteCartItem = async (req, res) => {
     }
 };
 
-module.exports = { addToCart, getMyCart, deleteCartItem };
+module.exports = { addToCart, getMyCart, updateCartItem, deleteCartItem };
