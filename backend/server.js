@@ -26,6 +26,7 @@ app.use(session({ secret: process.env.SESSION_SECRET || 'rahasia', resave: false
 app.use(passport.initialize());
 app.use('/api/orders', orderRoutes);
 app.use('/api/admin/orders', adminOrderRoutes);
+app.use('/api/admin/report', require('./routes/admin/adminReportRoutes'));
 // app.use(passport.session()); // Tidak wajib lagi karena kita override pakai JWT, tapi dibiarkan tidak apa-apa.
 
 // ... (Bagian Passport Strategy BIARKAN SAMA) ...

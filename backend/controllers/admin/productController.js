@@ -5,7 +5,7 @@ const path = require('path');
 // 1. AMBIL PRODUK (Bisa Semua, atau Filter by Brand/Category)
 const getProducts = async (req, res) => {
     try {
-        const { category_id, brand_id, search } = req.query;
+        const { category_id, brand_id, search, admin } = req.query; // Tambahkan 'admin' di sini
         
         let query = `
             SELECT p.*, c.name as category_name, b.name as brand_name 
@@ -14,9 +14,14 @@ const getProducts = async (req, res) => {
             JOIN brands b ON p.brand_id = b.id
             WHERE 1=1
         `;
+
+        // JIKA BUKAN ADMIN, filter yang aktif saja
+        if (admin !== 'true') { 
+            query += " AND p.status = 'active'";
+        }
+
         const params = [];
 
-        // Logika Filter Pintar
         if (category_id) {
             query += " AND p.category_id = ?";
             params.push(category_id);
@@ -41,7 +46,6 @@ const getProducts = async (req, res) => {
         res.status(500).json({ error: "Gagal mengambil data produk" });
     }
 };
-
 // 2. TAMBAH PRODUK BARU
 const createProduct = async (req, res) => {
     const { name, description, price, condition, size, category_id, brand_id } = req.body;
@@ -95,17 +99,19 @@ const updateProduct = async (req, res) => {
 };
 
 // 4. HAPUS PRODUK
-const deleteProduct = async (req, res) => {
+// Menghapus (Ubah status jadi inactive)
+const softDeleteProduct = async (req, res) => {
     const { id } = req.params;
-    try {
-        await db.query("DELETE FROM products WHERE id = ?", [id]);
-        res.json({ message: "Produk berhasil dihapus!" });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: "Gagal menghapus produk" });
-    }
+    await db.query("UPDATE products SET status = 'inactive' WHERE id = ?", [id]);
+    res.json({ message: "Produk dinonaktifkan dari user" });
 };
 
+// Mengembalikan (Ubah status jadi active)
+const restoreProduct = async (req, res) => {
+    const { id } = req.params;
+    await db.query("UPDATE products SET status = 'active' WHERE id = ?", [id]);
+    res.json({ message: "Produk diaktifkan kembali" });
+};
 // Helper untuk Dropdown di Frontend
 const getMetadata = async (req, res) => {
     try {
@@ -117,4 +123,5 @@ const getMetadata = async (req, res) => {
     }
 };
 
-module.exports = { getProducts, createProduct, updateProduct, deleteProduct, getMetadata };
+
+module.exports = { getProducts, createProduct, updateProduct, softDeleteProduct, getMetadata, restoreProduct };

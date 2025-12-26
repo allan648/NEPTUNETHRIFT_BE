@@ -26,6 +26,7 @@ router.get('/', productController.getProducts);         // Lihat semua + Filter
 router.get('/metadata', productController.getMetadata); // Ambil list Kategori & Brand (untuk dropdown)
 router.post('/', upload.single('image'), productController.createProduct); // Tambah
 router.put('/:id', upload.single('image'), productController.updateProduct); // Edit
-router.delete('/:id', productController.deleteProduct); // Hapus
-
+// router.put('/:id/soft-delete', softDeleteProduct)
+router.put('/:id/soft-delete', productController.softDeleteProduct); // Soft Delete
+router.put('/:id/restore', productController.restoreProduct);     // Restore
 module.exports = router;

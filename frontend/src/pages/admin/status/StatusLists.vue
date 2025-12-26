@@ -69,46 +69,69 @@ const closeDetail = () => {
 
 // --- LOGIKA 1: INPUT RESI (Status: PAID -> SHIPPED) ---
 const handleInputResi = async (order) => {
-    const { value: resi } = await Swal.fire({
-        title: 'Input Nomor Resi',
-        text: `Masukkan resi untuk pesanan #${order.id}`,
-        input: 'text',
-        inputPlaceholder: 'Contoh: JNE-882912',
+    const { value: formValues } = await Swal.fire({
+        title: 'Pengiriman Pesanan',
+        html: `
+            <div class="text-left">
+                <label class="block mb-2 font-bold text-gray-700">Pilih Kurir:</label>
+                <div class="flex gap-4 mb-4">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="courier" value="JNE" id="jne" checked class="w-4 h-4 text-blue-600">
+                        <span class="text-sm font-medium">JNE</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="courier" value="JNT" id="jnt" class="w-4 h-4 text-blue-600">
+                        <span class="text-sm font-medium">JNT Express</span>
+                    </label>
+                </div>
+                <label class="block mb-2 font-bold text-gray-700">Nomor Resi:</label>
+                <input id="swal-input-resi" class="swal2-input m-0 w-full" placeholder="Contoh: JNE-882912">
+            </div>
+        `,
+        focusConfirm: false,
         showCancelButton: true,
         confirmButtonText: 'Kirim & Notifikasi Email',
         confirmButtonColor: '#1e3a8a',
-        inputValidator: (value) => {
-            if (!value) return 'Nomor resi wajib diisi!'
+        preConfirm: () => {
+            const resi = document.getElementById('swal-input-resi').value;
+            const courier = document.querySelector('input[name="courier"]:checked').value;
+            
+            if (!resi) {
+                Swal.showValidationMessage('Nomor resi wajib diisi!');
+                return false;
+            }
+            return { resi, courier };
         }
     });
 
-    if (resi) {
+    if (formValues) {
+        const { resi, courier } = formValues;
+
         Swal.fire({
             title: 'Memproses...',
-            text: 'Menyimpan resi dan mengirim email...',
+            text: `Mengirim notifikasi kurir ${courier}...`,
             didOpen: () => Swal.showLoading()
         });
 
         try {
+            // Kita kirim tracking_number dan courier ke backend
             await axios.put(`${API_URL}/admin/orders/${order.id}/send`, { 
-                tracking_number: resi 
+                tracking_number: resi,
+                courier: courier // Mengirim nama kurir (JNE/JNT)
             });
             
-            Swal.fire('Berhasil!', 'Resi disimpan & Email terkirim ke pembeli.', 'success');
+            Swal.fire('Berhasil!', `Resi ${courier} berhasil disimpan dan email telah dikirim.`, 'success');
             
             // Update tampilan tabel secara realtime
-            if (order) {
-                order.status = 'shipped';
-                order.tracking_number = resi;
-            }
+            order.status = 'shipped';
+            order.tracking_number = resi;
 
         } catch (error) {
             console.error(error);
-            Swal.fire('Gagal', 'Gagal mengirim data. Cek console.', 'error');
+            Swal.fire('Gagal', 'Terjadi kesalahan pada server atau email.', 'error');
         }
     }
 };
-
 // --- LOGIKA 2: TANDAI SAMPAI (Status: SHIPPED -> DELIVERED) ---
 const handleMarkDelivered = async (order) => {
     Swal.fire({

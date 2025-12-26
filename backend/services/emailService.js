@@ -11,9 +11,8 @@ const transporter = nodemailer.createTransport({
 });
 
 // 2. Fungsi Kirim Email Resi
-const sendResiEmail = async (userEmail, recipientName, orderId, trackingNumber) => {
+const sendResiEmail = async (userEmail, recipientName, orderId, trackingNumber, courierName) => {
     
-    // Desain Email HTML (Tetap sama, tidak berubah)
     const emailHTML = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
             <div style="text-align: center; margin-bottom: 20px;">
@@ -29,7 +28,10 @@ const sendResiEmail = async (userEmail, recipientName, orderId, trackingNumber) 
                 <p>Pesananmu dengan ID <strong>#${orderId}</strong> sudah kami proses dan serahkan ke kurir.</p>
                 
                 <div style="background-color: #f0f9ff; border-left: 4px solid #1e3a8a; padding: 15px; margin: 20px 0;">
-                    <p style="margin: 0; color: #555; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Nomor Resi Pengiriman</p>
+                    <p style="margin: 0; color: #555; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Kurir Pengiriman</p>
+                    <p style="margin: 5px 0 10px 0; font-size: 18px; font-weight: bold; color: #333;">${courierName}</p>
+                    
+                    <p style="margin: 0; color: #555; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Nomor Resi</p>
                     <p style="margin: 5px 0 0 0; font-size: 24px; font-weight: bold; color: #1e3a8a; letter-spacing: 2px;">
                         ${trackingNumber}
                     </p>
@@ -55,15 +57,15 @@ const sendResiEmail = async (userEmail, recipientName, orderId, trackingNumber) 
     `;
 
     const mailOptions = {
-        from: `"Neptune Thrift Admin" <${process.env.EMAIL_USER}>`, // Pakai email dari env juga
+        from: `"Neptune Thrift Admin" <${process.env.EMAIL_USER}>`,
         to: userEmail,
-        subject: `📦 Paket Dikirim! Resi Pesanan #${orderId}`,
+        subject: `📦 Paket Dikirim (${courierName})! Resi Pesanan #${orderId}`,
         html: emailHTML
     };
 
     try {
         await transporter.sendMail(mailOptions);
-        console.log(`✅ Email resi sukses terkirim ke: ${userEmail}`);
+        console.log(`✅ Email resi (${courierName}) sukses terkirim ke: ${userEmail}`);
     } catch (error) {
         console.error("❌ Gagal kirim email:", error);
     }

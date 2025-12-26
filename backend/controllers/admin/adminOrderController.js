@@ -1,109 +1,111 @@
 const db = require('../../db');
-// 👇👇👇 TAMBAHKAN KOMA DAN FUNGSI BARU 👇👇👇
 const { sendResiEmail, sendArrivedEmail } = require('../../services/emailService');
 
-// 1. AMBIL SEMUA ORDER (Untuk Tabel Admin)
+// 1. Get All Orders
 const getAllOrders = async (req, res) => {
     try {
         const [orders] = await db.query(`
-            SELECT o.*, u.email 
-            FROM orders o
-            JOIN users u ON o.user_id = u.id
-            ORDER BY o.created_at DESC
+            SELECT * FROM orders ORDER BY created_at DESC
         `);
         res.json({ orders });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ message: "Gagal ambil data order" });
+        res.status(500).json({ message: "Gagal mengambil data pesanan." });
     }
 };
 
-// 2. KIRIM BARANG (Input Resi)
-const sendOrder = async (req, res) => {
-    const orderId = req.params.id;
-    const { tracking_number } = req.body; // Data resi dari inputan Admin
+// 2. Get Order Details
+const getOrderDetails = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const [order] = await db.query("SELECT * FROM orders WHERE id = ?", [id]);
+        if (order.length === 0) return res.status(404).json({ message: "Order tidak ditemukan" });
+        
+        const [items] = await db.query(`
+            SELECT oi.*, p.name, p.image 
+            FROM order_items oi 
+            JOIN products p ON oi.product_id = p.id 
+            WHERE oi.order_id = ?
+        `, [id]);
 
-    // Validasi: Resi tidak boleh kosong
-    if (!tracking_number) {
-        return res.status(400).json({ message: "Nomor resi wajib diisi!" });
+        res.json({ order: order[0], items });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Gagal mengambil detail pesanan." });
     }
+};
+
+// 3. Send Order (UPDATE: Menerima data Resi + Kurir JNE/JNT)
+const sendOrder = async (req, res) => {
+    const { id } = req.params;
+    const { tracking_number, courier } = req.body; // <--- Menerima 'courier' dari Radio Button Frontend
 
     try {
-        // A. Update Database: Ubah status jadi 'shipped' & Simpan Resi
+        // Ambil data pembeli & email
+        const [orderData] = await db.query(`
+            SELECT o.*, u.email 
+            FROM orders o 
+            JOIN users u ON o.user_id = u.id 
+            WHERE o.id = ?
+        `, [id]);
+
+        if (orderData.length === 0) return res.status(404).json({ message: "Order not found" });
+        const order = orderData[0];
+
+        // Update database: status jadi 'shipped' dan simpan resi
         await db.query(
-            "UPDATE orders SET status = 'shipped', tracking_number = ? WHERE id = ?", 
-            [tracking_number, orderId]
+            "UPDATE orders SET status = 'shipped', tracking_number = ? WHERE id = ?",
+            [tracking_number, id]
         );
 
-        // B. Ambil Email & Nama Pembeli (Untuk dikirimi notifikasi)
-        // Kita perlu join ke tabel users untuk dapat emailnya
-        const [rows] = await db.query(`
-            SELECT o.recipient_name, u.email 
-            FROM orders o
-            JOIN users u ON o.user_id = u.id
-            WHERE o.id = ?
-        `, [orderId]);
+        // KIRIM EMAIL: Sekarang menyertakan variabel courier
+        // Fungsi di emailService: (email, nama, id, resi, kurir)
+        await sendResiEmail(
+            order.email, 
+            order.recipient_name, 
+            id, 
+            tracking_number, 
+            courier
+        );
 
-        if (rows.length > 0) {
-            const { email, recipient_name } = rows[0];
-            
-            // C. PANGGIL EMAIL SERVICE
-            // Kita jalankan fungsi ini untuk mengirim email ke pembeli
-            console.log(`Mengirim email ke ${email}...`);
-            await sendResiEmail(email, recipient_name, orderId, tracking_number);
-        }
-
-        res.json({ message: "Resi disimpan & Email notifikasi terkirim!", status: 'shipped' });
-
+        res.json({ message: `Resi ${courier} berhasil diupdate dan email terkirim.` });
     } catch (error) {
-        console.error("Gagal update resi:", error);
-        res.status(500).json({ message: "Terjadi kesalahan server saat update resi." });
+        console.error("Error Send Order:", error);
+        res.status(500).json({ message: "Gagal memproses pengiriman." });
     }
 };
-const getOrderDetails = async (req, res) => {
-    const orderId = req.params.id;
-    try {
-        // Ambil Item + Data Produk (Gambar, Nama, Ukuran)
-        const [items] = await db.query(`
-            SELECT oi.*, p.name, p.image, p.size, p.category_id 
-            FROM order_items oi
-            JOIN products p ON oi.product_id = p.id
-            WHERE oi.order_id = ?
-        `, [orderId]);
 
-        res.json({ items });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: "Gagal ambil detail item" });
-    }
-};
+// 4. Set Order Delivered (Tandai Sampai)
 const setOrderDelivered = async (req, res) => {
-    const orderId = req.params.id;
+    const { id } = req.params;
 
     try {
-        // 1. Update status jadi 'delivered'
-        await db.query("UPDATE orders SET status = 'delivered' WHERE id = ?", [orderId]);
-
-        // 2. Ambil Email User
-        const [rows] = await db.query(`
-            SELECT o.recipient_name, u.email 
-            FROM orders o
-            JOIN users u ON o.user_id = u.id
+        const [orderData] = await db.query(`
+            SELECT o.*, u.email 
+            FROM orders o 
+            JOIN users u ON o.user_id = u.id 
             WHERE o.id = ?
-        `, [orderId]);
+        `, [id]);
 
-        if (rows.length > 0) {
-            // 3. Kirim Email "Konfirmasi Dong"
-            const { email, recipient_name } = rows[0];
-            sendArrivedEmail(email, recipient_name, orderId);
-        }
+        if (orderData.length === 0) return res.status(404).json({ message: "Order not found" });
+        const order = orderData[0];
 
-        res.json({ message: "Status diubah jadi SAMPAI & Email terkirim", status: 'delivered' });
+        // Update status ke delivered
+        await db.query("UPDATE orders SET status = 'delivered' WHERE id = ?", [id]);
 
+        // Kirim email notifikasi barang sampai
+        await sendArrivedEmail(order.email, order.recipient_name, id);
+
+        res.json({ message: "Status diperbarui menjadi DELIVERED dan email terkirim." });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: "Gagal update status" });
+        console.error("Error Delivered Order:", error);
+        res.status(500).json({ message: "Gagal memperbarui status sampai." });
     }
 };
 
-module.exports = { getAllOrders, sendOrder, getOrderDetails, setOrderDelivered };
+module.exports = {
+    getAllOrders,
+    getOrderDetails,
+    sendOrder,
+    setOrderDelivered
+};
