@@ -11,8 +11,18 @@ const transporter = nodemailer.createTransport({
 });
 
 // 2. Fungsi Kirim Email Resi
+// 2. Fungsi Kirim Email Resi
 const sendResiEmail = async (userEmail, recipientName, orderId, trackingNumber, courierName) => {
     
+    // Tentukan URL Tracking berdasarkan nama kurir
+    let trackingURL = "http://localhost:5173/myorder"; // Default ke web sendiri jika kurir tidak dikenal
+    
+    if (courierName === "JNE") {
+        trackingURL = "https://jne.co.id/tracking-package";
+    } else if (courierName === "JNT") {
+        trackingURL = "https://jet.co.id/track";
+    }
+
     const emailHTML = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
             <div style="text-align: center; margin-bottom: 20px;">
@@ -37,14 +47,15 @@ const sendResiEmail = async (userEmail, recipientName, orderId, trackingNumber, 
                     </p>
                 </div>
 
-                <p>Kamu bisa memantau perjalanan paketmu langsung melalui website kami:</p>
+                <p style="color: #666; font-size: 14px;">Silakan klik tombol di bawah untuk melacak paket Anda di website resmi kurir:</p>
                 
                 <div style="text-align: center; margin-top: 30px;">
-                    <a href="http://localhost:5173/myorder" 
+                    <a href="${trackingURL}" 
                        style="background-color: #1e3a8a; color: white; padding: 12px 30px; text-decoration: none; border-radius: 50px; font-weight: bold; display: inline-block;">
-                       Lacak Pesanan Saya
+                       Lacak Pesanan Saya (${courierName})
                     </a>
                 </div>
+                <p style="text-align: center; color: #888; font-size: 11px; margin-top: 10px;">*Masukkan nomor resi di atas pada kolom tracking di website kurir.</p>
             </div>
 
             <hr style="border: 0; border-top: 1px solid #eee; margin-top: 30px;">

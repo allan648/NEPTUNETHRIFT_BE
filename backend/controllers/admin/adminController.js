@@ -23,4 +23,19 @@ const deactivateUser = async (req, res) => {
   }
 };
 
-module.exports = { getUsers, deactivateUser };
+// adminController.js
+// const getDashboardStats = async (req, res) => {
+//     const [users] = await db.query("SELECT COUNT(*) as total FROM users");
+//     const [orders] = await db.query("SELECT COUNT(*) as total FROM orders WHERE status = 'paid'");
+//     const [products] = await db.query("SELECT COUNT(*) as total FROM products WHERE status = 'active'");
+//     const [comments] = await db.query("SELECT COUNT(*) as total FROM comments");
+
+//     res.json({
+//         users: users[0].total,
+//         orders: orders[0].total,
+//         products: products[0].total,
+//         comments: comments[0].total
+//     });
+// };
+
+module.exports = { getUsers, deactivateUser,  };

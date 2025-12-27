@@ -129,64 +129,68 @@ const cancelOrder = async (req, res) => {
 };
 const updatePaymentStatus = async (req, res) => {
     const orderId = req.params.id;
-    console.log(`[DEBUG] 1. Menerima request update untuk Order ID DB: ${orderId}`);
-
     const connection = await db.getConnection();
+    await connection.beginTransaction();
 
     try {
-        // 1. Ambil Data Order
+        // 1. Ambil Data Order & Itemnya
         const [rows] = await connection.query("SELECT midtrans_order_id, status FROM orders WHERE id = ?", [orderId]);
-        
         if (rows.length === 0) {
-            console.log(`[DEBUG] Order tidak ditemukan di DB`);
+            await connection.rollback();
             return res.status(404).json({ message: "Order tidak ditemukan" });
         }
 
         const order = rows[0];
-        console.log(`[DEBUG] 2. Data ditemukan. Midtrans ID: ${order.midtrans_order_id}, Status saat ini: ${order.status}`);
-
-        // Jika sudah paid, skip
-        if (order.status === 'paid') {
-            console.log(`[DEBUG] Order ini sudah lunas sebelumnya.`);
-            return res.json({ message: "Order sudah lunas", status: 'paid' });
+        if (order.status === 'paid' || order.status === 'cancelled') {
+            await connection.rollback();
+            return res.json({ message: "Order sudah diproses sebelumnya", status: order.status });
         }
 
-        // 2. Cek ke Midtrans
-        console.log(`[DEBUG] 3. Menghubungi Server Midtrans...`);
+        // 2. Cek Status ke Midtrans
         const midtransResponse = await snap.transaction.status(order.midtrans_order_id);
-        
-        console.log(`[DEBUG] 4. Jawaban Midtrans:`, midtransResponse.transaction_status);
-
         const transactionStatus = midtransResponse.transaction_status;
         const fraudStatus = midtransResponse.fraud_status;
 
-        // 3. Logika Penentuan Status
         let newStatus = 'pending';
 
-        if (transactionStatus == 'capture') {
-            if (fraudStatus == 'challenge') newStatus = 'pending';
-            else if (fraudStatus == 'accept') newStatus = 'paid';
+        // 3. LOGIKA PENENTUAN STATUS
+        if (transactionStatus == 'capture' && fraudStatus == 'accept') {
+            newStatus = 'paid';
         } else if (transactionStatus == 'settlement') {
-            newStatus = 'paid'; // <--- INI YANG KITA CARI
-        } else if (transactionStatus == 'cancel' || transactionStatus == 'deny' || transactionStatus == 'expire') {
-            newStatus = 'cancelled';
+            newStatus = 'paid';
+        } else if (['cancel', 'deny', 'expire'].includes(transactionStatus)) {
+            newStatus = 'cancelled'; // Pembayaran gagal atau waktu habis
         }
 
-        console.log(`[DEBUG] 5. Status Baru yang akan disimpan: ${newStatus}`);
-
-        // 4. Update Database
+        // 4. EKSEKUSI UPDATE DATABASE
         if (newStatus === 'paid') {
-            const [updateResult] = await connection.query("UPDATE orders SET status = 'paid' WHERE id = ?", [orderId]);
-            console.log(`[DEBUG] 6. Database Update Berhasil? ${updateResult.affectedRows > 0 ? 'YA' : 'TIDAK'}`);
-        } else {
-            console.log(`[DEBUG] 6. Tidak melakukan update karena status bukan 'paid'`);
+            // JIKA LUNAS: Set Order 'paid' & Produk 'inactive'
+            await connection.query("UPDATE orders SET status = 'paid' WHERE id = ?", [orderId]);
+            
+            const [orderItems] = await connection.query("SELECT product_id FROM order_items WHERE order_id = ?", [orderId]);
+            for (const item of orderItems) {
+                await connection.query("UPDATE products SET status = 'inactive' WHERE id = ?", [item.product_id]);
+            }
+            console.log(`[PAID] Order #${orderId} sukses, produk ditarik dari etalase.`);
+
+        } else if (newStatus === 'cancelled') {
+            // JIKA GAGAL/EXPIRED: Set Order 'cancelled' & Kembalikan Produk ke 'active'
+            await connection.query("UPDATE orders SET status = 'cancelled' WHERE id = ?", [orderId]);
+            
+            const [orderItems] = await connection.query("SELECT product_id FROM order_items WHERE order_id = ?", [orderId]);
+            for (const item of orderItems) {
+                await connection.query("UPDATE products SET status = 'active' WHERE id = ?", [item.product_id]);
+            }
+            console.log(`[CANCELLED] Order #${orderId} batal, produk dikembalikan ke etalase.`);
         }
 
+        await connection.commit();
         res.json({ message: "Status diperbarui", status: newStatus });
 
     } catch (error) {
-        console.error("[ERROR DEBUGGING]", error);
-        res.status(500).json({ message: "Gagal mengecek status pembayaran" });
+        await connection.rollback();
+        console.error("[ERROR]", error);
+        res.status(500).json({ message: "Gagal update status" });
     } finally {
         connection.release();
     }

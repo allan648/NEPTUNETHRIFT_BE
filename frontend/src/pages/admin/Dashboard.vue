@@ -1,126 +1,98 @@
 <script setup lang="ts">
+import { ref, onMounted, nextTick } from 'vue'
+import axios from 'axios'
+import Chart from 'chart.js/auto'
 import User from '@/components/icons/User.vue'
 import Cart from '@/components/icons/Cart.vue'
 import Product from '@/components/icons/Product.vue'
 import Comment from '@/components/icons/Comment.vue'
-import ArrowRight from '@/components/icons/ArrowRight.vue'
-import ArrowLeft from '@/components/icons/ArrowLeft.vue'
-import Show from '@/components/icons/Show.vue'
-import TrashCan from '@/components/icons/TrashCan.vue'
-import Search from '@/components/icons/Search.vue'
+
+const stats = ref({ users: 0, orders: 0, products: 0, comments: 0 })
+const chartCanvas = ref<HTMLCanvasElement | null>(null)
+let salesChart: any = null
+
+const loadDashboard = async () => {
+  try {
+    // Ubah URL dari /dashboard-all menjadi /dashboard
+    const res = await axios.get('http://localhost:3000/api/admin/dashboard')
+    
+    // Karena sekarang data digabung, pastikan cara mengambilnya benar
+    const { stats: dataStats, salesGraph } = res.data
+
+    stats.value = dataStats
+
+    const labels = salesGraph.length > 0 ? salesGraph.map((i: any) => i.label) : ['No Data']
+    const totals = salesGraph.length > 0 ? salesGraph.map((i: any) => i.total) : [0]
+
+    await nextTick()
+    renderChart(labels, totals)
+  } catch (error) {
+    console.error("Gagal load dashboard:", error)
+  }
+}
+
+const renderChart = (labels: string[], totals: number[]) => {
+  if (!chartCanvas.value) return
+  if (salesChart) salesChart.destroy()
+
+  salesChart = new Chart(chartCanvas.value, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Pendapatan Terkonfirmasi',
+        data: totals,
+        backgroundColor: '#295F98',
+        borderRadius: 8,
+        // --- UKURAN KONSISTEN ---
+        maxBarThickness: 50, // Batang tidak akan pernah lebih lebar dari 50px
+        barPercentage: 0.8,  // Mengatur kepadatan batang
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { 
+          beginAtZero: true,
+          ticks: { 
+            callback: (v) => 'Rp ' + v.toLocaleString('id-ID') 
+          }
+        }
+      },
+      plugins: {
+        legend: { display: false }
+      }
+    }
+  })
+}
+
+onMounted(loadDashboard)
 </script>
 
 <template>
   <div class="space-y-6">
-    <div class="flex justify-between gap-3 flex-wrap">
-      <h1 class="text-3xl font-se font-semibold">Dashboard</h1>
-    </div>
-    <div class="flex gap-3">
-      <div class="flex p-8 w-full border border-gray-300 rounded-3xl">
+    <h1 class="text-3xl font-semibold">Dashboard Neptune Thrift</h1>
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div v-for="(val, key) in stats" :key="key" class="p-6 border border-gray-300 rounded-3xl bg-white shadow-sm flex items-center gap-4">
+        <div class="p-3 bg-blue-100 rounded-2xl text-blue-700">
+            <User v-if="key === 'users'" class="size-8" />
+            <Cart v-if="key === 'orders'" class="size-8" />
+            <Product v-if="key === 'products'" class="size-8" />
+            <Comment v-if="key === 'comments'" class="size-8" />
+        </div>
         <div>
-          <User class="right-32 size-8" />
-        <div class="flex flex-row gap-2">
-          <p class="max-w-35">Registered Travelers</p>
-          <h3 class="font-semibold text-3xl">30</h3>
-        </div>
-        </div>
-      </div>
-      <div class="flex p-8 w-full border border-gray-300 rounded-3xl">
-        <div>
-          <Cart class="right-32 size-8" />
-        <div class="flex flex-row gap-2">
-          <p class="max-w-35">Transaction History’s</p>
-          <h3 class="font-semibold text-3xl">30</h3>
-        </div>
-        </div>
-      </div>
-      <div class="flex p-8 w-full border border-gray-300 rounded-3xl">
-        <div>
-          <Product class="right-32 size-8" />
-        <div class="flex flex-row gap-2">
-          <p class="max-w-35">Quantity of Products</p>
-          <h3 class="font-semibold text-3xl">30</h3>
-        </div>
-        </div>
-      </div>
-      <div class="flex p-8 w-full border border-gray-300 rounded-3xl">
-        <div>
-          <Comment class="right-32 size-8" />
-        <div class="flex flex-row gap-2">
-          <p class="max-w-35">The Comment Count</p>
-          <h3 class="font-semibold text-3xl">30</h3>
-        </div>
+          <p class="text-xs text-gray-500 uppercase font-bold">{{ key }}</p>
+          <h3 class="font-bold text-2xl">{{ val }}</h3>
         </div>
       </div>
     </div>
-    <div class="flex flex-col rounded-3xl border border-gray-300">
-      <div class="flex p-4">
-        <h2 class="font-semibold">Informations</h2>
-      </div>
-      <div class="w-full h-[1px] bg-gray-300"></div>
-      <div class="flex flex-col p-4">
-        <div class="border border-gray-300 gap-2 px-2.5 py-2 flex items-center w-1/2 rounded-full">
-          <Search class="size-6" />
-          <input
-            type="text"
-            class="w-full text-xs md:text-sm leading-5 placeholder:text-neu-500 focus:outline-none"
-            placeholder="Search something..."
-          />
-        </div>
 
-        <div class="mt-4 overflow-hidden border border-gray-300 rounded-2xl">
-          <div class="max-w-full overflow-x-auto">
-            <table class="min-w-180 w-full">
-              <thead class="bg-blue-700 text-xs text-white">
-                <tr>
-                  <th class="p-4 text-start font-semibold w-12">NO</th>
-                  <th class="p-4 text-start font-semibold">PRODUCT</th>
-                  <th class="p-4 text-start font-semibold">CATEGORY</th>
-                  <th colspan="2" class="p-4 text-start font-semibold">DESCRIPTION</th>
-                  <th class="p-4 text-start font-semibold">ACTION</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr class="text-sm text-neu-700 border-b border-gray-300" v-for="i in 5" :key="i">
-                  <td class="p-4 text-neu-900">1</td>
-                  <td class="p-4 text-neu-900 font-semibold">Nike Air</td>
-                  <td class="p-4">Sneakers</td>
-                  <td colspan="2" class="p-4">Kondisi masih oke, baru di pakai 9 bulan </td>
-                  <td class="p-4 flex gap-3">
-                    <button
-                      type="button"
-                      class="flex items-center justify-center p-2 rounded-[6px] cursor-pointer hover:bg-[#214B78] bg-[#295F98]"
-                    >
-                      <Show class="size-5 text-neu-50" />
-                    </button>
-                    <button
-                      type="button"
-                      class="flex items-center justify-center p-2 rounded-[6px] cursor-pointer hover:bg-[#B71A1A] bg-[#E02424]"
-                    >
-                      <TrashCan class="size-5 text-neu-50" />
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="flex justify-between gap-3 flex-wrap items-center mt-3">
-          <div class="text-sm text-gray-600">
-            Showing <span class="font-medium text-gray-900">1</span> to
-            <span class="font-medium text-gray-900">1</span> of
-            <span class="font-medium text-gray-900">10</span> Entries
-          </div>
-          <div class="flex items-center rounded-[8px] overflow-hidden">
-            <div class="flex bg-gray-300 hover:bg-gray-200 text-gray-900 gap-2 h-8 px-3 items-center font-semibold">
-              <ArrowLeft class="size-4" />Prev
-            </div>
-            <div class="flex bg-gray-300 hover:bg-gray-200 text-gray-900 gap-2 h-8 px-3 cursor-pointer items-center border-l border-gray-200 font-semibold">
-              Next<ArrowRight class="size-4" />
-            </div>
-          </div>
-        </div>
+    <div class="p-6 border border-gray-300 rounded-3xl bg-white">
+      <h2 class="font-bold text-xl mb-4">Grafik Penjualan (7 Hari Terakhir)</h2>
+      <div class="h-[400px]">
+        <canvas ref="chartCanvas"></canvas>
       </div>
     </div>
   </div>

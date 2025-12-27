@@ -11,6 +11,8 @@ const db = require('./db');
 const routes = require('./routes'); 
 const orderRoutes = require('./routes/client/orderRoutes');
 const adminOrderRoutes = require('./routes/admin/adminOrderRoutes');
+const categoryRoutes = require('./routes/admin/categoryRoutes');
+const brandRoutes = require('./routes/admin/brandRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -27,6 +29,8 @@ app.use(passport.initialize());
 app.use('/api/orders', orderRoutes);
 app.use('/api/admin/orders', adminOrderRoutes);
 app.use('/api/admin/report', require('./routes/admin/adminReportRoutes'));
+app.use('/api/admin/categories', categoryRoutes);
+app.use('/api/admin/brands', brandRoutes);
 // app.use(passport.session()); // Tidak wajib lagi karena kita override pakai JWT, tapi dibiarkan tidak apa-apa.
 
 // ... (Bagian Passport Strategy BIARKAN SAMA) ...

@@ -33,6 +33,7 @@ import Status from "@/pages/admin/status/Status.vue";
 import StatusLists from "@/pages/admin/status/StatusLists.vue";
 import CategoryLists from "@/pages/admin/categories/CategoryLists.vue";
 import CommentLists from "@/pages/admin/comments/CommentLists.vue";
+import Brands from "@/pages/admin/brand/Brands.vue";
 
 // Admin - Create/Edit/Detail
 import CreateAdmin from "@/pages/admin/accounts/CreateAdmin.vue";
@@ -143,6 +144,7 @@ const router = createRouter({
           ],
         },
         { path: "categories", name: "Categories", component: CategoryLists },
+        { path : "brands", name: "Brands", component: Brands },
         {
           path: "transactions",
           component: Transactions,

@@ -7,6 +7,8 @@ import Comment from "@/components/icons/Comment.vue";
 import Cart from "@/components/icons/Cart.vue";
 import CategoriesIcon from "@/components/icons/CategoriesIcon.vue";
 import StatusItems from "@/components/icons/StatusItems.vue";
+// Tambahkan ikon untuk Brand di sini (contoh menggunakan ikon Tag atau sejenisnya)
+import BrandIcon from "@/components/icons/CategoriesIcon.vue"; 
 </script>
 <template>
   <aside
@@ -51,6 +53,7 @@ import StatusItems from "@/components/icons/StatusItems.vue";
       </div>
       <div class="space-y-3">
         <h3 class="text-sm font-semibold uppercase text-neu-500 pl-3">Product and Transaction</h3>
+        
         <RouterLink
           :to="{ name: 'Products' }"
           class="flex gap-3 items-center py-2 px-4 font-medium hover:bg-blue-300 transition-all duration-50 rounded-xl"
@@ -61,6 +64,7 @@ import StatusItems from "@/components/icons/StatusItems.vue";
             :class="$route.path.startsWith('/admin/products') ? ' text-gray-950' : 'text-neu-500'"
           />Products
         </RouterLink>
+
         <RouterLink
           :to="{ name: 'Categories' }"
           class="flex gap-3 items-center py-2 px-4 font-medium hover:bg-blue-300 transition-all duration-50 rounded-xl"
@@ -71,6 +75,18 @@ import StatusItems from "@/components/icons/StatusItems.vue";
             :class="$route.path.startsWith('/admin/categories') ? ' text-gray-950' : 'text-neu-500'"
           />Categories
         </RouterLink>
+
+        <RouterLink
+          :to="{ name: 'Brands' }"
+          class="flex gap-3 items-center py-2 px-4 font-medium hover:bg-blue-300 transition-all duration-50 rounded-xl"
+          :class="$route.path.startsWith('/admin/brands') ? 'bg-blue-300 text-gray-950' : ''"
+        >
+          <BrandIcon
+            class="size-5"
+            :class="$route.path.startsWith('/admin/brands') ? ' text-gray-950' : 'text-neu-500'"
+          />Brands
+        </RouterLink>
+
         <RouterLink
           :to="{ name: 'Transactions' }"
           class="flex gap-3 items-center py-2 px-4 font-medium hover:bg-blue-300 transition-all duration-50 rounded-xl"
@@ -81,6 +97,7 @@ import StatusItems from "@/components/icons/StatusItems.vue";
             :class="$route.path.startsWith('/admin/transactions') ? ' text-gray-950' : 'text-neu-500'"
           />Transaction History's
         </RouterLink>
+
         <RouterLink
           :to="{ name: 'Status' }"
           class="flex gap-3 items-center py-2 px-4 font-medium hover:bg-blue-300 transition-all duration-50 rounded-xl"
@@ -89,7 +106,7 @@ import StatusItems from "@/components/icons/StatusItems.vue";
           <StatusItems
             class="size-5"
             :class="$route.path.startsWith('/admin/status') ? ' text-gray-950' : 'text-neu-500'"
-          />Status Products
+          />Orders
         </RouterLink>
       </div>
       <div class="space-y-3">

@@ -40,10 +40,15 @@ const getAiAnalysis = async (req, res) => {
 
         const prompt = `
             ${dataContext}
-            Analisa data ini sebagai Business Intelligence. 
-            Berikan output Markdown (Ringkasan, Analisis, Rekomendasi).
-            Bahasa Indonesia.
+
+            Sebagai seorang Business Intelligence Expert, berikan analisa mendalam untuk Neptune Thrift dalam format Markdown:
+            1. **Ringkasan Performa**: Analisa singkat kondisi keuangan berdasarkan revenue dan rasio pesanan sukses vs pending.
+            2. **Analisa Target Pasar**: Berdasarkan nama-nama produk yang laris di atas, identifikasi profil pelanggan saya. Apakah mereka pencinta sneakers basket, penikmat gaya vintage, atau pencari sepatu lari murah? Jelaskan alasan logisnya.
+            3. **Rekomendasi Stok Sepatu**: Sepatu seperti apa (merek, model, atau look) yang harus saya stok lebih banyak agar cepat laku (fast-moving) berdasarkan pola penjualan produk yang laris tersebut?
+            4. **Strategi Pemasaran**: Berikan 3 ide strategi pemasaran digital yang efektif untuk menjangkau target pasar yang telah diidentifikasi.
+            Gunakan Bahasa Indonesia yang profesional dan tajam, singkat.
         `;
+        
 
         // --- PANGGIL GEMINI ---
         console.log("3. Mengirim request ke Google Gemini...");
