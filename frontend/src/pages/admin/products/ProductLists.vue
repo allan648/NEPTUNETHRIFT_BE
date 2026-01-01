@@ -173,13 +173,37 @@ onMounted(() => {
                     </td>
 
                     <td class="p-4">
-                        <span :class="product.status === 'active' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'" 
-                              class="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter border">
-                            {{ product.status }}
-                        </span>
-                    </td>
+  <div class="flex flex-col gap-2 items-start">
+    <span :class="product.status === 'active' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'" 
+          class="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter border">
+        {{ product.status }}
+    </span>
+    
+    <span v-if="product.is_promotion === 1" 
+          class="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter border bg-orange-100 text-orange-700 border-orange-200 animate-pulse">
+        🔥 PROMO
+    </span>
+  </div>
+</td>
 
-                    <td class="p-4 text-end font-bold text-gray-900">{{ formatRp(product.price) }}</td>
+<td class="p-4 text-end">
+  <div class="flex flex-col items-end">
+    <template v-if="product.is_promotion === 1">
+      <span class="text-[10px] text-red-500 font-bold line-through decoration-red-500 opacity-70">
+        {{ formatRp(product.price) }}
+      </span>
+      <span class="font-black text-gray-900 text-base">
+        {{ formatRp(product.discount_price) }}
+      </span>
+    </template>
+    
+    <template v-else>
+      <span class="font-bold text-gray-900 text-base">
+        {{ formatRp(product.price) }}
+      </span>
+    </template>
+  </div>
+</td>
 
                     <td class="p-4">
                         <div class="flex gap-2 items-center justify-center">

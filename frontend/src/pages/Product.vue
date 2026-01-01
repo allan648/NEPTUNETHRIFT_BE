@@ -55,17 +55,25 @@ const fetchProducts = async () => {
     const params = {
       brand_id: filters.brand_id || undefined,
       category_id: filters.category_id || undefined,
-      sort: filters.sort
-      // JANGAN kirim admin: true di sini
+      sort: filters.sort,
+      // Kita tidak mengirimkan promo: true, 
+      // sehingga backend otomatis memfilter is_promotion = 0
     };
 
     const response = await axios.get(`${API_URL}/products`, { params });
     
-    // Pastikan kita hanya mengambil data yang statusnya 'active'
-    products.value = response.data.filter(p => p.status === 'active');
+    // Safety Filter: Pastikan status 'active' DAN 'is_promotion' adalah 0
+    const rawData = response.data.products || response.data;
+    
+    if (Array.isArray(rawData)) {
+      products.value = rawData.filter(p => 
+        p.status === 'active' && 
+        (p.is_promotion === 0 || p.is_promotion === '0')
+      );
+    }
     
   } catch (error) {
-    console.error(error);
+    console.error("Gagal load produk:", error);
   } finally {
     isLoading.value = false;
   }

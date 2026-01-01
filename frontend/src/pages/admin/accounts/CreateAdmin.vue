@@ -1,135 +1,149 @@
 <script setup>
-import { ref, reactive, computed } from 'vue';
+import { ref, onMounted, computed } from 'vue';
+import axios from 'axios';
+import Swal from 'sweetalert2';
+import { useRouter } from 'vue-router';
 
-// Menggunakan ref untuk state primitif
-const passwordVisible = ref(false);
+const router = useRouter();
+const API_URL = "http://localhost:3000/api";
+axios.defaults.withCredentials = true;
 
-// Menggunakan reactive untuk state objek
-const adminData = reactive({
-  username: '',
-  email: '',
-  password: '',
-  phoneNumber: '',
-});
+// --- STATE ---
+const users = ref([]); // Pastikan inisialisasi sebagai array kosong
+const searchQuery = ref('');
+const isLoading = ref(true);
 
-// Computed property untuk mengubah tipe input password secara dinamis
-const passwordFieldType = computed(() => {
-  return passwordVisible.value ? 'text' : 'password';
-});
-
-// Fungsi untuk toggle visibilitas password
-const togglePasswordVisibility = () => {
-  passwordVisible.value = !passwordVisible.value;
+// --- 1. FETCH USERS ---
+const fetchUsers = async () => {
+  isLoading.value = true;
+  try {
+    // SESUAIKAN JALUR: 
+    // /api (dari server.js) 
+    // /admin (biasanya dari routes/index.js)
+    // /users/list (dari userRoutes.js)
+    const res = await axios.get(`${API_URL}/admin/users/list`);
+    
+    console.log("Data diterima:", res.data);
+    users.value = Array.isArray(res.data) ? res.data : [];
+  } catch (error) {
+    console.error("Gagal mengambil daftar user:", error);
+    users.value = [];
+  } finally {
+    isLoading.value = false;
+  }
 };
 
-// Fungsi untuk handle submit form
-const createAdmin = () => {
-  // Di sini Anda akan menambahkan logika untuk mengirim data ke server
-  console.log('Data Admin yang akan dibuat:', adminData);
-  // Contoh: alert('Admin berhasil dibuat!');
+// --- 2. FILTER USERS (COMPUTED) ---
+const filteredUsers = computed(() => {
+  // Pengaman: Jika users bukan array, langsung return array kosong
+  if (!Array.isArray(users.value)) return [];
+
+  const query = searchQuery.value.toLowerCase();
+  return users.value.filter(user => {
+    // Tambahkan pengaman .toLowerCase() agar tidak error jika email/username null
+    const name = (user.username || '').toLowerCase();
+    const email = (user.email || '').toLowerCase();
+    return name.includes(query) || email.includes(query);
+  });
+});
+
+// --- 3. MAKE ADMIN FUNCTION ---
+const makeAdmin = (user) => {
+  Swal.fire({
+    title: 'Jadikan Admin?',
+    text: `User ${user.email} akan memiliki akses penuh ke panel admin.`,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#1e3a8a',
+    confirmButtonText: 'Ya, Jadikan Admin',
+    cancelButtonText: 'Batal'
+  }).then(async (result) => {
+    if (result.isConfirmed) {
+      try {
+        // SESUAIKAN JALUR: /api/admin/users/:id/make-admin
+        await axios.put(`${API_URL}/admin/users/${user.id}/make-admin`);
+        Swal.fire('Berhasil!', 'Role user telah diperbarui.', 'success');
+        fetchUsers(); 
+      } catch (error) {
+        Swal.fire('Gagal', 'Terjadi kesalahan server.', 'error');
+      }
+    }
+  });
 };
+
+onMounted(() => {
+  fetchUsers();
+});
 </script>
 
 <template>
   <div class="space-y-6">
-    <!-- Header (Structure matches accountlists) -->
-    <div class="flex flex-col gap-2">
-      <h1 class="text-3xl font-semibold">Create Admin</h1>
+    <div class="flex justify-between items-center">
+      <h1 class="text-3xl font-semibold text-gray-800">Add New Admin</h1>
+      <router-link to="/admin/accounts" class="text-indigo-600 font-medium hover:underline flex items-center gap-1">
+        <span>←</span> Kembali ke Daftar Akun
+      </router-link>
     </div>
 
-    <!-- Content Card (Container structure matches accountlists: rounded-3xl, border-gray-300) -->
-    <div class="flex flex-col rounded-3xl border border-gray-300 bg-white">
-      <div class="p-8">
+    <div class="flex flex-col rounded-3xl border border-gray-300 bg-white overflow-hidden shadow-sm">
+      
+      <div class="p-6 border-b border-gray-200 bg-gray-50/50">
+        <label class="block text-sm font-bold text-gray-700 mb-2">Cari User berdasarkan Email atau Nama:</label>
+        <div class="relative">
+          <input 
+            v-model="searchQuery"
+            type="text" 
+            placeholder="Ketik email atau username..." 
+            class="w-full md:w-1/2 px-5 py-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-indigo-500 outline-none transition shadow-sm"
+          />
+        </div>
+      </div>
 
-        <!-- Form Content (From createadmin request) -->
-        <form @submit.prevent="createAdmin">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left">
+          <thead class="bg-indigo-900 text-white uppercase text-xs font-bold">
+            <tr>
+              <th class="px-6 py-4">Username</th>
+              <th class="px-6 py-4">Email Address</th>
+              <th class="px-6 py-4 text-right">Aksi</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200">
+            <tr v-if="isLoading">
+              <td colspan="3" class="px-6 py-12 text-center text-gray-500 italic">
+                <div class="flex items-center justify-center gap-2">
+                  <span class="animate-spin text-xl">⏳</span> Memuat data user...
+                </div>
+              </td>
+            </tr>
 
-            <!-- Username Input -->
-            <div>
-              <label for="username" class="block text-base font-semibold text-gray-800 mb-2">Username</label>
-              <input
-                v-model="adminData.username"
-                type="text"
-                id="username"
-                placeholder="Username"
-                class="w-full px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
-              >
-            </div>
+            <tr v-else-if="filteredUsers.length === 0">
+               <td colspan="3" class="px-6 py-12 text-center text-gray-500">
+                 User tidak ditemukan atau belum ada data.
+               </td>
+            </tr>
 
-            <!-- Email Input -->
-            <div>
-              <label for="email" class="block text-base font-semibold text-gray-800 mb-2">Email</label>
-              <input
-                v-model="adminData.email"
-                type="email"
-                id="email"
-                placeholder="Email"
-                class="w-full px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
-              >
-            </div>
-
-            <!-- Password Input -->
-            <div>
-              <label for="password" class="block text-base font-semibold text-gray-800 mb-2">Password</label>
-              <div class="relative">
-                <input
-                  v-model="adminData.password"
-                  :type="passwordFieldType"
-                  id="password"
-                  placeholder="Password"
-                  class="w-full px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
+            <tr v-for="user in filteredUsers" :key="user.id" class="hover:bg-indigo-50 transition duration-150">
+              <td class="px-6 py-4 font-semibold text-gray-900">{{ user.username }}</td>
+              <td class="px-6 py-4 text-gray-600">{{ user.email }}</td>
+              <td class="px-6 py-4 text-right">
+                <button 
+                  @click="makeAdmin(user)"
+                  class="bg-indigo-600 text-white px-6 py-2 rounded-full text-sm font-bold hover:bg-indigo-800 transition shadow-md active:scale-95"
                 >
-                <button type="button" @click="togglePasswordVisibility" class="absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
-                  <svg v-if="!passwordVisible" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                  <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7 .946-3.111 3.523-5.515 6.7-6.525M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M3 3l4.35 4.35" />
-                  </svg>
+                  Make Admin
                 </button>
-              </div>
-            </div>
-
-            <!-- Phone Number Input -->
-            <div>
-              <label for="phone-number" class="block text-base font-semibold text-gray-800 mb-2">Phone Number</label>
-              <input
-                v-model="adminData.phoneNumber"
-                type="tel"
-                id="phone-number"
-                placeholder="Phone number"
-                class="w-full px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
-              >
-            </div>
-          </div>
-
-          <!-- Action Buttons -->
-          <div class="mt-8 flex items-center space-x-4">
-            <button
-              type="submit"
-              class="bg-blue-900 text-white font-semibold px-8 py-3 rounded-full hover:bg-blue-800 transition duration-300"
-            >
-              Create
-            </button>
-
-            <!-- BUTTON CANCEL DIUBAH MENJADI ROUTER-LINK -->
-            <router-link
-              :to="{ name: 'Accounts' }"
-              class="bg-white text-gray-800 font-semibold px-8 py-3 border border-gray-300 rounded-full hover:bg-gray-100 transition duration-300 flex items-center justify-center"
-            >
-              Cancel
-            </router-link>
-          </div>
-        </form>
-
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* Styling tambahan yang spesifik untuk komponen ini bisa ditambahkan di sini jika perlu */
+.animate-spin {
+  display: inline-block;
+}
 </style>

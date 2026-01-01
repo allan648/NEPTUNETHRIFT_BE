@@ -29,4 +29,8 @@ router.put('/:id', upload.single('image'), productController.updateProduct); // 
 // router.put('/:id/soft-delete', softDeleteProduct)
 router.put('/:id/soft-delete', productController.softDeleteProduct); // Soft Delete
 router.put('/:id/restore', productController.restoreProduct);     // Restore
+router.get('/products/promo', async (req, res) => {
+    const [rows] = await db.query("SELECT * FROM products WHERE is_promotion = 1 AND status = 'active'");
+    res.json(rows);
+});
 module.exports = router;

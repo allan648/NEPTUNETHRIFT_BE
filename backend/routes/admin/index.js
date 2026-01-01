@@ -9,5 +9,6 @@ const dashboardController = require('../../controllers/admin/dashboardController
 router.use('/', userRoutes); // Jadi /api/admin/users
 router.use('/products', productRoutes); // Jadi /api/admin/products
 router.get('/dashboard', dashboardController.getDashboardData);
+
 // router.get('/weekly-sales', dashboardController.getWeeklySales);
 module.exports = router;

@@ -30,10 +30,15 @@ const fetchCart = async () => {
     const response = await axios.get(`${API_URL}/cart?_t=${timestamp}`);
     const rawItems = response.data.items || response.data;
     
-    cartItems.value = rawItems.map(item => ({
-        ...item,
-        is_selected: item.is_selected === 1 || item.is_selected === true
-    }));
+    // PENGECEKAN: Filter hanya produk yang statusnya 'active'
+    // Produk yang 'inactive' (terjual/dihapus) otomatis hilang dari daftar
+    cartItems.value = rawItems
+        .filter(item => item.status === 'active') 
+        .map(item => ({
+            ...item,
+            is_selected: item.is_selected === 1 || item.is_selected === true
+        }));
+
   } catch (error) {
     if (error.response && error.response.status === 401) router.push('/');
   } finally {
@@ -87,12 +92,16 @@ const removeItem = (cartId, productName) => {
   });
 };
 
+// --- PERBAIKAN LOGIKA TOTAL HARGA ---
 const totalPrice = computed(() => {
   return cartItems.value
     .filter(item => item.is_selected)
-    .reduce((total, item) => total + (item.price * item.quantity), 0);
+    .reduce((total, item) => {
+      // Jika promo aktif, gunakan discount_price, jika tidak gunakan price asli
+      const priceToUse = item.is_promotion === 1 ? item.discount_price : item.price;
+      return total + (priceToUse * item.quantity);
+    }, 0);
 });
-
 const selectedCount = computed(() => {
     return cartItems.value.filter(item => item.is_selected).length;
 });
@@ -196,14 +205,19 @@ onBeforeUnmount(() => {
             <img :src="item.image || 'https://via.placeholder.com/150'" class="h-full w-full object-cover mix-blend-multiply">
           </div>
 
-          <div class="flex-grow text-center sm:text-left w-full sm:w-auto">
-            <h2 class="text-lg font-bold text-gray-900 mb-1">{{ item.name }}</h2>
-            <div class="flex items-center justify-center sm:justify-start gap-4 text-sm text-gray-500 mb-2">
-              <span v-if="item.size" class="bg-gray-100 px-2 py-0.5 rounded text-xs font-medium text-gray-600">Size: {{ item.size }}</span>
-              <span class="flex items-center gap-1 text-xs font-medium text-blue-600">Condition: {{ item.condition }}/5</span>
-            </div>
-            <p class="text-xl font-bold text-blue-700">{{ formatRp(item.price) }}</p>
-          </div>
+              <div class="flex-grow text-center sm:text-left w-full sm:w-auto">
+                <h2 class="text-lg font-bold text-gray-900 mb-1">{{ item.name }}</h2>
+                <div class="flex items-center justify-center sm:justify-start gap-4 text-sm text-gray-500 mb-2">
+                  <span v-if="item.size" class="bg-gray-100 px-2 py-0.5 rounded text-xs font-medium text-gray-600">Size: {{ item.size }}</span>
+                  <span class="flex items-center gap-1 text-xs font-medium text-blue-600">Condition: {{ item.condition }}/5</span>
+                </div>
+
+                <div v-if="item.is_promotion === 1" class="flex flex-col sm:items-start items-center">
+                  <p class="text-xl font-black text-red-600 leading-none">{{ formatRp(item.discount_price) }}</p>
+                  <p class="text-xs text-gray-400 line-through mt-1">{{ formatRp(item.price) }}</p>
+                </div>
+                <p v-else class="text-xl font-bold text-blue-700">{{ formatRp(item.price) }}</p>
+              </div>
 
           <div class="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto mt-2 sm:mt-0 border-t sm:border-0 pt-4 sm:pt-0 border-gray-100">
             <div class="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-200">

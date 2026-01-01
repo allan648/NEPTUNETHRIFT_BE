@@ -12,6 +12,8 @@ const getUsers = async (req, res) => {
   }
 };
 
+
+
 const deactivateUser = async (req, res) => {
   const userId = req.params.id;
   try {
@@ -38,4 +40,4 @@ const deactivateUser = async (req, res) => {
 //     });
 // };
 
-module.exports = { getUsers, deactivateUser,  };
+module.exports = { getUsers, deactivateUser, getUsersList, makeAdmin };

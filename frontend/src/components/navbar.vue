@@ -1,12 +1,11 @@
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick, computed, watch } from "vue";
+import { ref, onMounted, onUnmounted, nextTick, computed } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import axios from 'axios';
 import Swal from 'sweetalert2';
 
 // Import Store
 import { useAuthStore } from '@/stores/authStore';
-import { useCartStore } from '@/stores/cartStore'; // <--- 1. Import Cart Store
 
 // Import Komponen & Aset
 import LoginModal from "@/components/auth/LoginModal.vue";
@@ -19,15 +18,12 @@ import EnvelopeIcon from "@/asset/images/icons/envelope.png";
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore(); 
-const cartStore = useCartStore(); // <--- 2. Gunakan Cart Store
 
 // --- STATE DARI STORE (COMPUTED) ---
 const isAuthenticated = computed(() => authStore.isAuthenticated);
 const currentUserAvatar = computed(() => authStore.user?.avatar || defaultAvatar);
 const currentUsername = computed(() => authStore.user?.username || "User");
 const isAdmin = computed(() => authStore.user?.role === 'admin');
-// Ambil jumlah cart dari store
-const cartCount = computed(() => cartStore.count); 
 
 const showLoginModal = computed({
   get: () => authStore.showLoginModal,
@@ -53,13 +49,10 @@ const handleProtectedNav = (path) => {
       text: 'Silakan login untuk mengakses fitur ini.',
       showCancelButton: true,
       confirmButtonText: 'Login Sekarang',
-      cancelButtonText: 'Nanti Saja',
-      confirmButtonColor: '#000000',
       cancelButtonColor: '#d33',
+      confirmButtonColor: '#000000',
     }).then((result) => {
-      if (result.isConfirmed) {
-        authStore.openLoginModal();
-      }
+      if (result.isConfirmed) authStore.openLoginModal();
     });
   }
 };
@@ -69,24 +62,15 @@ const handleSearch = () => {
   router.push({ path: '/product', query: { search: searchTerm.value } });
 };
 
-const toggleUserDropdown = () => {
-  isUserOpen.value = !isUserOpen.value;
-};
-
-const toggleSidebar = () => {
-  isSidebarOpen.value = !isSidebarOpen.value;
-};
+const toggleUserDropdown = () => isUserOpen.value = !isUserOpen.value;
+const toggleSidebar = () => isSidebarOpen.value = !isSidebarOpen.value;
 
 const handleScroll = () => {
-  if (navbarRef.value) {
-    isSticky.value = window.scrollY > 80;
-  }
+  if (navbarRef.value) isSticky.value = window.scrollY > 80;
 };
 
 const closeOnClickOutside = (event) => {
-  if (!event.target.closest(".user-dropdown")) {
-    isUserOpen.value = false;
-  }
+  if (!event.target.closest(".user-dropdown")) isUserOpen.value = false;
 };
 
 const handleLogout = async () => {
@@ -96,14 +80,13 @@ const handleLogout = async () => {
         icon: 'question',
         showCancelButton: true,
         confirmButtonColor: '#d33',
-        cancelButtonColor: '#3085d6',
         confirmButtonText: 'Ya, Keluar'
     }).then(async (result) => {
         if (result.isConfirmed) {
             await authStore.logout();
-            cartStore.count = 0; // Reset cart count
             isUserOpen.value = false;
             Swal.fire('Signed Out', 'Anda berhasil keluar.', 'success');
+            router.push('/');
         }
     });
 };
@@ -112,28 +95,12 @@ const handleLogout = async () => {
 onMounted(async () => {
   await authStore.checkAuth();
   
-  // Jika User Login, hitung isi keranjang
-  if (authStore.isAuthenticated) {
-     await cartStore.fetchCartCount();
-  }
-  
   nextTick(() => {
-    if (navbarRef.value) {
-      navHeight.value = navbarRef.value.offsetHeight;
-    }
+    if (navbarRef.value) navHeight.value = navbarRef.value.offsetHeight;
   });
   
   window.addEventListener("scroll", handleScroll);
   window.addEventListener("click", closeOnClickOutside);
-});
-
-// Watcher: Jika status login berubah (misal habis login modal), update cart count
-watch(isAuthenticated, async (newVal) => {
-    if (newVal) {
-        await cartStore.fetchCartCount();
-    } else {
-        cartStore.count = 0;
-    }
 });
 
 onUnmounted(() => {
@@ -157,93 +124,71 @@ onUnmounted(() => {
       
       <RouterLink to="/" class="flex items-center space-x-2">
         <img :src="logofootwear" alt="Logo" class="h-8 w-8" />
-        <span class="font-extrabold text-xl">
-          <span class="text-blue-700">NEPTUNE</span>THRIFT
+        <span class="font-extrabold text-xl uppercase">
+          <span class="text-blue-700">Neptune</span>Thrift
         </span>
       </RouterLink>
 
       <div class="hidden md:flex flex-grow items-center justify-center px-8 space-x-12">
-        
         <form v-if="isSticky" @submit.prevent="handleSearch" class="w-full max-w-md">
           <div class="relative">
-            <input
-              type="text"
-              v-model="searchTerm"
-              placeholder="Cari sepatu impianmu..."
-              class="w-full py-2 pl-10 pr-4 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-            />
+            <input v-model="searchTerm" type="text" placeholder="Cari sepatu impianmu..." class="w-full py-2 pl-10 pr-4 border border-gray-300 rounded-full focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
-              </svg>
+              <svg class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" /></svg>
             </div>
           </div>
         </form>
 
         <ul class="flex items-center space-x-12">
-           <li class="group flex flex-col items-center">
-            <RouterLink to="/product" class="font-medium text-blue-700 transition-colors duration-300 group-hover:text-blue-500" :class="{ 'text-blue-500': route.path === '/product' }">Product</RouterLink>
-            <span class="mt-1 h-0.5 bg-blue-500 rounded-full transition-all duration-400 ease-out" :class="route.path === '/product' ? 'w-8' : 'w-0 group-hover:w-8'"></span>
+          <li class="group flex flex-col items-center">
+            <RouterLink to="/product" class="font-medium text-blue-700 hover:text-blue-500 transition" :class="{ 'text-blue-500': route.path === '/product' }">Product</RouterLink>
+            <span class="mt-1 h-0.5 bg-blue-500 rounded-full transition-all duration-400" :class="route.path === '/product' ? 'w-8' : 'w-0 group-hover:w-8'"></span>
           </li>
           <li class="group flex flex-col items-center">
-            <RouterLink to="/promo" class="font-medium text-blue-700 transition-colors duration-300 group-hover:text-blue-500" :class="{ 'text-blue-500': route.path === '/promo' }">Promo</RouterLink>
-            <span class="mt-1 h-0.5 bg-blue-500 rounded-full transition-all duration-400 ease-out" :class="route.path === '/promo' ? 'w-8' : 'w-0 group-hover:w-8'"></span>
+            <RouterLink to="/promo" class="font-medium text-blue-700 hover:text-blue-500 transition" :class="{ 'text-blue-500': route.path === '/promo' }">Promo</RouterLink>
+            <span class="mt-1 h-0.5 bg-blue-500 rounded-full transition-all duration-400" :class="route.path === '/promo' ? 'w-8' : 'w-0 group-hover:w-8'"></span>
           </li>
           <li class="group flex flex-col items-center">
-            <RouterLink to="/about" class="font-medium text-blue-700 transition-colors duration-300 group-hover:text-blue-500" :class="{ 'text-blue-500': route.path === '/about' }">About</RouterLink>
-            <span class="mt-1 h-0.5 bg-blue-500 rounded-full transition-all duration-400 ease-out" :class="route.path === '/about' ? 'w-8' : 'w-0 group-hover:w-8'"></span>
+            <RouterLink to="/about" class="font-medium text-blue-700 hover:text-blue-500 transition" :class="{ 'text-blue-500': route.path === '/about' }">About</RouterLink>
+            <span class="mt-1 h-0.5 bg-blue-500 rounded-full transition-all duration-400" :class="route.path === '/about' ? 'w-8' : 'w-0 group-hover:w-8'"></span>
           </li>
         </ul>
       </div>
 
       <div class="md:hidden">
         <button @click="toggleSidebar" aria-label="Toggle sidebar">
-          <svg class="h-6 w-6 text-blue-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
-          </svg>
+          <svg class="h-6 w-6 text-blue-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" /></svg>
         </button>
       </div>
 
       <div class="hidden md:flex items-center space-x-10">
-        
-        <div class="group flex flex-col items-center cursor-pointer relative"> <a @click.prevent="handleProtectedNav('/user/cart')" aria-label="View Shopping Cart" class="relative">
-            <img :src="cartIcon" alt="Shopping Cart" class="h-10 w-10 transition-transform duration-300 group-hover:scale-110" />
-            
-            <div 
-                v-if="cartCount > 0"
-                class="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white shadow-sm"
-            >
-                {{ cartCount }}
-            </div>
-
+        <div class="group flex flex-col items-center cursor-pointer relative"> 
+          <a @click.prevent="handleProtectedNav('/user/cart')" class="relative">
+            <img :src="cartIcon" alt="Cart" class="h-10 w-10 transition duration-300 group-hover:scale-110" />
           </a>
-          <span class="mt-1 h-0.5 bg-blue-500 rounded-full transition-all duration-400 ease-out" :class="route.path === '/user/cart' ? 'w-8' : 'w-0 group-hover:w-8'"></span>
+          <span class="mt-1 h-0.5 bg-blue-500 rounded-full transition-all duration-400" :class="route.path === '/user/cart' ? 'w-8' : 'w-0 group-hover:w-8'"></span>
         </div>
+
         <div class="group flex flex-col items-center cursor-pointer">
-          <a @click.prevent="handleProtectedNav('/myorder')" aria-label="View My Orders">
-            <img :src="EnvelopeIcon" alt="Notification" class=" mt-1 h-8 w-8 transition-transform duration-300 group-hover:scale-110" />
+          <a @click.prevent="handleProtectedNav('/myorder')">
+            <img :src="EnvelopeIcon" alt="Orders" class="mt-1 h-8 w-8 transition duration-300 group-hover:scale-110" />
           </a>
-          <span class="mt-1 h-0.5 bg-blue-500 rounded-full transition-all duration-400 ease-out" :class="route.path === '/myorder' ? 'w-8' : 'w-0 group-hover:w-8'"></span>
+          <span class="mt-1 h-0.5 bg-blue-500 rounded-full transition-all duration-400" :class="route.path === '/myorder' ? 'w-8' : 'w-0 group-hover:w-8'"></span>
         </div>
 
         <div>
           <div v-if="isAuthenticated" class="relative user-dropdown">
-            <button @click="toggleUserDropdown" class="focus:outline-none block">
-              <img :src="currentUserAvatar" alt="User" class="h-10 w-10 rounded-full object-cover border-2 border-transparent transition-all hover:border-blue-500 hover:scale-105" />
+            <button @click="toggleUserDropdown" class="focus:outline-none">
+              <img :src="currentUserAvatar" alt="User" class="h-10 w-10 rounded-full object-cover border-2 border-transparent hover:border-blue-500 transition-all hover:scale-105" />
             </button>
-            
-            <div v-if="isUserOpen" class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-xl z-20 py-1">
+            <div v-if="isUserOpen" class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-xl z-20 py-1 border">
               <RouterLink to="/user/profile" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50"> My Profile </RouterLink>
               <RouterLink v-if="isAdmin" to="/admin/dashboard" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50"> My Dashboard </RouterLink>
-              <a href="#" @click.prevent="handleLogout" class="w-full text-left block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50"> Sign Out </a>
+              <a href="#" @click.prevent="handleLogout" class="block px-4 py-2 text-sm text-red-600 hover:bg-red-50"> Sign Out </a>
             </div>
           </div>
-          
           <div v-else>
-            <button @click="authStore.openLoginModal()" class="flex items-center gap-2 font-medium text-white bg-blue-700 hover:bg-blue-600 px-4 py-2 rounded-full transition-colors">
-              <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                <path fill-rule="evenodd" d="M7.5 3.75A1.5 1.5 0 006 5.25v13.5a1.5 1.5 0 001.5 1.5h6a1.5 1.5 0 001.5-1.5V15a.75.75 0 011.5 0v3.75a3 3 0 01-3 3h-6a3 3 0 01-3-3V5.25a3 3 0 013-3h6a3 3 0 013 3V9A.75.75 0 0115 9V5.25a1.5 1.5 0 00-1.5-1.5h-6zm10.72 4.72a.75.75 0 011.06 0l3 3a.75.75 0 010 1.06l-3 3a.75.75 0 11-1.06-1.06l1.72-1.72H9a.75.75 0 010-1.5h10.94l-1.72-1.72a.75.75 0 010-1.06z" clip-rule="evenodd" />
-              </svg>
+            <button @click="authStore.openLoginModal()" class="flex items-center gap-2 font-medium text-white bg-blue-700 hover:bg-blue-600 px-5 py-2 rounded-full transition shadow-md">
               Sign In
             </button>
           </div>
@@ -253,69 +198,31 @@ onUnmounted(() => {
   </nav>
 
   <div v-if="isSidebarOpen" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] md:hidden" @click="isSidebarOpen = false"></div>
-
-  <aside class="fixed top-0 left-0 w-[280px] h-full bg-white z-[70] shadow-2xl transform transition-transform duration-300 ease-in-out md:hidden flex flex-col" :class="isSidebarOpen ? 'translate-x-0' : '-translate-x-full'">
-    <div class="p-6 flex justify-between items-center border-b border-gray-100">
-      <span class="font-extrabold text-xl tracking-tight">
-        <span class="text-blue-700">NEPTUNE</span>THRIFT
-      </span>
-      <button @click="isSidebarOpen = false" class="p-2 rounded-full hover:bg-gray-100 transition-colors">
+  <aside class="fixed top-0 left-0 w-[280px] h-full bg-white z-[70] shadow-2xl transform transition-transform duration-300 md:hidden flex flex-col" :class="isSidebarOpen ? 'translate-x-0' : '-translate-x-full'">
+    <div class="p-6 flex justify-between items-center border-b">
+      <span class="font-extrabold text-xl text-blue-700">NEPTUNE THRIFT</span>
+      <button @click="isSidebarOpen = false" class="p-2 rounded-full hover:bg-gray-100">
         <svg class="h-6 w-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
       </button>
     </div>
-
     <div class="flex-1 overflow-y-auto p-4">
       <nav class="flex flex-col space-y-2">
-        <RouterLink to="/product" @click="isSidebarOpen = false" class="flex items-center gap-4 px-4 py-3 rounded-xl text-gray-700 font-medium hover:bg-blue-50 hover:text-blue-700 transition-all">
-          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-          Product
-        </RouterLink>
-        <RouterLink to="/promo" @click="isSidebarOpen = false" class="flex items-center gap-4 px-4 py-3 rounded-xl text-gray-700 font-medium hover:bg-blue-50 hover:text-blue-700 transition-all">
-          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
-          Promo
-        </RouterLink>
-        <RouterLink to="/about" @click="isSidebarOpen = false" class="flex items-center gap-4 px-4 py-3 rounded-xl text-gray-700 font-medium hover:bg-blue-50 hover:text-blue-700 transition-all">
-          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          About
-        </RouterLink>
-        
-        <a @click.prevent="handleProtectedNav('/user/cart'); isSidebarOpen = false" class="flex items-center gap-4 px-4 py-3 rounded-xl text-gray-700 font-medium hover:bg-blue-50 hover:text-blue-700 transition-all cursor-pointer justify-between">
-          <div class="flex items-center gap-4">
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-            Cart
-          </div>
-          <span v-if="cartCount > 0" class="bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-            {{ cartCount }}
-          </span>
-        </a>
+        <RouterLink to="/product" @click="isSidebarOpen = false" class="flex items-center gap-4 px-4 py-3 rounded-xl text-gray-700 hover:bg-blue-50 transition">Product</RouterLink>
+        <RouterLink to="/promo" @click="isSidebarOpen = false" class="flex items-center gap-4 px-4 py-3 rounded-xl text-gray-700 hover:bg-blue-50 transition">Promo</RouterLink>
+        <RouterLink to="/about" @click="isSidebarOpen = false" class="flex items-center gap-4 px-4 py-3 rounded-xl text-gray-700 hover:bg-blue-50 transition">About</RouterLink>
+        <a @click.prevent="handleProtectedNav('/user/cart'); isSidebarOpen = false" class="flex items-center gap-4 px-4 py-3 rounded-xl text-gray-700 hover:bg-blue-50 transition cursor-pointer">Cart</a>
       </nav>
     </div>
-
-    <div class="p-4 border-t border-gray-100 bg-gray-50">
+    <div class="p-4 border-t bg-gray-50">
       <div v-if="isAuthenticated" class="flex flex-col gap-2">
-        <RouterLink to="/user/profile" @click="isSidebarOpen = false" class="flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-gray-200 text-gray-700 font-medium hover:border-blue-300 hover:text-blue-700 transition-all">
-          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-          My Profile
-        </RouterLink>
-        <button @click="handleLogout" class="flex items-center gap-3 px-4 py-3 rounded-xl text-red-600 font-medium hover:bg-red-50 transition-all w-full text-left">
-          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-          Sign Out
-        </button>
+        <RouterLink to="/user/profile" @click="isSidebarOpen = false" class="flex items-center justify-center px-4 py-3 rounded-xl bg-white border border-gray-200 text-gray-700 font-medium transition">My Profile</RouterLink>
+        <button @click="handleLogout" class="py-3 rounded-xl text-red-600 font-medium hover:bg-red-50 transition w-full">Sign Out</button>
       </div>
       <div v-else>
-        <button @click="authStore.openLoginModal(); isSidebarOpen = false" class="w-full flex items-center justify-center gap-2 font-bold text-white bg-blue-700 hover:bg-blue-800 py-3 rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95">
-           <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-              <path fill-rule="evenodd" d="M7.5 3.75A1.5 1.5 0 006 5.25v13.5a1.5 1.5 0 001.5 1.5h6a1.5 1.5 0 001.5-1.5V15a.75.75 0 011.5 0v3.75a3 3 0 01-3 3h-6a3 3 0 01-3-3V5.25a3 3 0 013-3h6a3 3 0 013 3V9A.75.75 0 0115 9V5.25a1.5 1.5 0 00-1.5-1.5h-6zm10.72 4.72a.75.75 0 011.06 0l3 3a.75.75 0 010 1.06l-3 3a.75.75 0 11-1.06-1.06l1.72-1.72H9a.75.75 0 010-1.5h10.94l-1.72-1.72a.75.75 0 010-1.06z" clip-rule="evenodd" />
-            </svg>
-            Sign In / Register
-        </button>
+        <button @click="authStore.openLoginModal(); isSidebarOpen = false" class="w-full py-3 rounded-xl bg-blue-700 text-white font-bold transition active:scale-95">Sign In / Register</button>
       </div>
     </div>
   </aside>
 
-  <LoginModal
-    :show="showLoginModal"
-    @close="authStore.closeLoginModal()"
-    @login-success="authStore.checkAuth()"
-  />
+  <LoginModal :show="showLoginModal" @close="authStore.closeLoginModal()" @login-success="authStore.checkAuth()" />
 </template>

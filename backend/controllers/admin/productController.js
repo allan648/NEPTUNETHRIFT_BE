@@ -5,7 +5,8 @@ const path = require('path');
 // 1. AMBIL PRODUK (Bisa Semua, atau Filter by Brand/Category)
 const getProducts = async (req, res) => {
     try {
-        const { category_id, brand_id, search, admin } = req.query; // Tambahkan 'admin' di sini
+        // Tambahkan 'promo' ke destructuring query
+        const { category_id, brand_id, search, admin, promo } = req.query; 
         
         let query = `
             SELECT p.*, c.name as category_name, b.name as brand_name 
@@ -15,12 +16,26 @@ const getProducts = async (req, res) => {
             WHERE 1=1
         `;
 
-        // JIKA BUKAN ADMIN, filter yang aktif saja
-        if (admin !== 'true') { 
+        const params = [];
+
+        // --- LOGIKA FILTER ---
+
+        if (admin === 'true') {
+            // Jika Admin: Tampilkan semua tanpa kecuali (untuk Management Product)
+        } else {
+            // Jika BUKAN Admin (Pembeli):
             query += " AND p.status = 'active'";
+
+            if (promo === 'true') {
+                // Jika sedang buka halaman PROMO: Tampilkan yang is_promotion = 1
+                query += " AND p.is_promotion = 1";
+            } else {
+                // Jika sedang buka halaman PRODUCT BIASA: Tampilkan yang is_promotion = 0
+                query += " AND p.is_promotion = 0";
+            }
         }
 
-        const params = [];
+        // --- FILTER TAMBAHAN (Kategori, Brand, Search) ---
 
         if (category_id) {
             query += " AND p.category_id = ?";
@@ -70,31 +85,71 @@ const createProduct = async (req, res) => {
 };// 3. EDIT PRODUK
 const updateProduct = async (req, res) => {
     const { id } = req.params;
-    // TAMBAH 'size' DI SINI
-    const { name, description, price, condition, size, category_id, brand_id } = req.body;
+    const { 
+        name, 
+        description, 
+        price, 
+        condition, 
+        size, 
+        category_id, 
+        brand_id, 
+        is_promotion, 
+        discount_price 
+    } = req.body;
     
     try {
-        let imageQuery = "";
-        // TAMBAH 'size' KE ARRAY PARAMS
-        let params = [name, description, price, condition, size, category_id, brand_id];
+        // 1. Pastikan nilai angka benar-benar angka (karena FormData mengirim string)
+        const finalPrice = parseFloat(price) || 0;
+        const finalDiscountPrice = parseFloat(discount_price) || 0;
+        const finalIsPromotion = parseInt(is_promotion) || 0;
+        const finalCondition = parseInt(condition) || 5;
 
+        // 2. Susun Query Dasar
+        // Gunakan backticks pada `condition` karena itu reserved word di MySQL
+        let sql = `
+            UPDATE products 
+            SET name = ?, 
+                description = ?, 
+                price = ?, 
+                \`condition\` = ?, 
+                size = ?, 
+                category_id = ?, 
+                brand_id = ?, 
+                is_promotion = ?, 
+                discount_price = ?
+        `;
+
+        // 3. Susun Array Params sesuai urutan tanda tanya di atas
+        let params = [
+            name, 
+            description, 
+            finalPrice, 
+            finalCondition, 
+            size, 
+            category_id, 
+            brand_id, 
+            finalIsPromotion, 
+            finalDiscountPrice
+        ];
+
+        // 4. Cek jika ada upload gambar baru
         if (req.file) {
             const newImage = `http://localhost:3000/uploads/${req.file.filename}`;
-            imageQuery = ", image = ?";
+            sql += ", image = ? ";
             params.push(newImage);
         }
 
+        // 5. Terakhir tambahkan ID untuk WHERE
+        sql += " WHERE id = ?";
         params.push(id);
 
-        await db.query(
-            // TAMBAH size=? DI QUERY
-            `UPDATE products SET name=?, description=?, price=?, \`condition\`=?, size=?, category_id=?, brand_id=? ${imageQuery} WHERE id=?`,
-            params
-        );
+        // 6. Eksekusi
+        await db.query(sql, params);
+        
         res.json({ message: "Produk berhasil diupdate!" });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: "Gagal update produk" });
+        console.error("Detail Error SQL:", error);
+        res.status(500).json({ error: "Gagal update produk", detail: error.message });
     }
 };
 

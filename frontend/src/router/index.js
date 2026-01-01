@@ -130,7 +130,7 @@ const router = createRouter({
             { path: "", name: "Accounts", component: AccountsList },
             { path: "create", name: "Createadmin", component: CreateAdmin },
             { path: "edit", name: "Editadmin", component: EditAdmin },
-            { path: "detail", name: "Detailaccount", component: DetailAccount },
+            { path: "detail/:id", name: "Detailaccount", component: DetailAccount },
           ],
         },
         {

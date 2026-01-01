@@ -167,14 +167,7 @@ onMounted(() => {
 
                   <td class="p-4 flex gap-2">
                       
-                      <router-link
-                        v-if="user.id !== currentUserId" 
-                        :to="{ name: 'Editadmin', params: { id: user.id } }" 
-                        title="Edit"
-                        class="flex items-center justify-center p-2 rounded-md bg-yellow-400 hover:bg-yellow-500 transition-colors shadow-sm"
-                      >
-                        <Edit class="size-4 text-white" />
-                      </router-link>
+                      <!--  -->
 
                       <router-link
                         :to="{ name: 'Detailaccount', params: { id: user.id } }"

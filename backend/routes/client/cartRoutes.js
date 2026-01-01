@@ -17,5 +17,7 @@ router.put('/:id', cartController.updateCartItem);
 
 // 4. Hapus Barang/Sampah (DELETE) -> PENTING: Arahkan ke deleteCartItem
 router.delete('/:id', cartController.deleteCartItem);
+// 5. Ambil Jumlah Item di Keranjang (GET) -> PENTING: Arahkan ke getCartCount
+router.get('/count', cartController.getCartCount);
 
 module.exports = router;

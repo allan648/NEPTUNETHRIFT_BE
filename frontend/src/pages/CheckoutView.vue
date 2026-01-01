@@ -80,7 +80,11 @@ onMounted(async () => {
 
 // --- COMPUTED ---
 const subTotalProduk = computed(() => {
-    return checkoutItems.value.reduce((total, item) => total + (item.price * item.quantity), 0);
+    return checkoutItems.value.reduce((total, item) => {
+        // Gunakan discount_price jika is_promotion aktif
+        const activePrice = item.is_promotion === 1 ? item.discount_price : item.price;
+        return total + (activePrice * item.quantity);
+    }, 0);
 });
 
 const totalPayment = computed(() => {
@@ -278,28 +282,35 @@ const handleCreateOrder = async () => {
             </div>
 
             <div v-for="item in checkoutItems" :key="item.cart_id" class="flex flex-col md:flex-row items-center gap-4 py-4 border-b border-gray-100 last:border-0">
-                <div class="w-full md:w-1/2 flex items-center gap-3">
-                    <img :src="item.image || 'https://via.placeholder.com/150'" class="w-14 h-14 object-cover rounded border">
-                    <div>
-                        <p class="line-clamp-1 font-medium text-gray-800">{{ item.name }}</p>
-                        <p class="text-xs text-gray-500">Variasi: {{ item.size || 'All Size' }}</p>
-                    </div>
-                </div>
-                <div class="w-full md:w-1/6 text-center text-gray-600 text-sm hidden md:block">
-                    {{ formatRp(item.price) }}
-                </div>
-                <div class="w-full md:w-1/6 text-center text-gray-600 text-sm hidden md:block">
-                    {{ item.quantity }}
-                </div>
-                <div class="w-full md:w-1/6 text-right font-bold text-gray-800">
-                    {{ formatRp(item.price * item.quantity) }}
-                </div>
-            </div>
+    <div class="w-full md:w-1/2 flex items-center gap-3">
+        <img :src="item.image || 'https://via.placeholder.com/150'" class="w-14 h-14 object-cover rounded border">
+        <div>
+            <p class="line-clamp-1 font-medium text-gray-800">{{ item.name }}</p>
+            <p class="text-xs text-gray-500">Variasi: {{ item.size || 'All Size' }}</p>
+        </div>
+    </div>
+    
+    <div class="w-full md:w-1/6 text-center text-gray-600 text-sm hidden md:block">
+        <div v-if="item.is_promotion === 1">
+            <p class="font-bold text-red-600">{{ formatRp(item.discount_price) }}</p>
+            <p class="text-[10px] line-through text-gray-400">{{ formatRp(item.price) }}</p>
+        </div>
+        <p v-else>{{ formatRp(item.price) }}</p>
+    </div>
+
+    <div class="w-full md:w-1/6 text-center text-gray-600 text-sm hidden md:block">
+        {{ item.quantity }}
+    </div>
+
+    <div class="w-full md:w-1/6 text-right font-bold text-gray-800">
+        {{ formatRp((item.is_promotion === 1 ? item.discount_price : item.price) * item.quantity) }}
+    </div>
+</div>
 
             <div class="border-t border-dashed border-gray-200 mt-4 pt-4 flex flex-col md:flex-row md:items-center justify-end gap-4">
                 <div class="flex items-center justify-between md:justify-end gap-6 md:w-1/3">
-                    <span class="text-sm text-green-600 font-medium bg-green-50 px-2 py-1 rounded">Opsi Pengiriman: Reguler</span>
-                    <span class="text-sm font-bold text-gray-800">{{ shippingCost === 0 ? 'Rp 0 (Promo)' : formatRp(shippingCost) }}</span>
+                    
+                   
                 </div>
             </div>
         </div>
@@ -316,7 +327,7 @@ const handleCreateOrder = async () => {
 
                 <div class="w-full md:w-1/3 space-y-2">
                     <div class="flex justify-between text-sm text-gray-600"><span>Subtotal Produk</span><span>{{ formatRp(subTotalProduk) }}</span></div>
-                    <div class="flex justify-between text-sm text-gray-600"><span>Total Ongkos Kirim</span><span>{{ formatRp(shippingCost) }}</span></div>
+                    <!-- <div class="flex justify-between text-sm text-gray-600"><span>Total Ongkos Kirim</span><span>{{ formatRp(shippingCost) }}</span></div> -->
                     <div class="flex justify-between text-sm text-gray-600"><span>Biaya Layanan</span><span>Rp 1.000</span></div>
                     <div class="flex justify-between text-lg font-bold text-gray-800 pt-2 border-t mt-2">
                         <span>Total Pembayaran</span>
