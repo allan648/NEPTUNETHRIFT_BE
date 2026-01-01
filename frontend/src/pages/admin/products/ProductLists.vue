@@ -130,7 +130,7 @@ onMounted(() => {
         <div class="overflow-hidden border border-gray-200 rounded-2xl">
           <div class="max-w-full overflow-x-auto">
             <table class="min-w-180 w-full text-left">
-              <thead class="bg-gray-800 text-xs text-white uppercase tracking-wider">
+              <thead class="bg-blue-800 text-xs text-white uppercase tracking-wider">
                   <tr>
                     <th class="p-4 w-12 text-center">NO</th>
                     <th class="p-4 w-24">IMAGE</th>

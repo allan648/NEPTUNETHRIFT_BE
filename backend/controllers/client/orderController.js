@@ -130,72 +130,120 @@ const cancelOrder = async (req, res) => {
 const updatePaymentStatus = async (req, res) => {
     const orderId = req.params.id;
     const connection = await db.getConnection();
-    await connection.beginTransaction();
-
+    
     try {
-        // 1. Ambil Data Order & Itemnya
-        const [rows] = await connection.query("SELECT midtrans_order_id, status FROM orders WHERE id = ?", [orderId]);
+        await connection.beginTransaction();
+
+        // 1. Ambil Data Order (Ditambahkan created_at untuk validasi waktu)
+        const [rows] = await connection.query(
+            "SELECT midtrans_order_id, status, created_at FROM orders WHERE id = ?", 
+            [orderId]
+        );
+
         if (rows.length === 0) {
             await connection.rollback();
             return res.status(404).json({ message: "Order tidak ditemukan" });
         }
 
         const order = rows[0];
+
+        // OPTIMASI: Jika status sudah final (paid/cancelled), jangan tembak Midtrans
         if (order.status === 'paid' || order.status === 'cancelled') {
             await connection.rollback();
-            return res.json({ message: "Order sudah diproses sebelumnya", status: order.status });
+            return res.json({ 
+                message: "Order sudah diproses sebelumnya", 
+                status: order.status 
+            });
         }
 
-        // 2. Cek Status ke Midtrans
-        const midtransResponse = await snap.transaction.status(order.midtrans_order_id);
+        // OPTIMASI: Cek selisih waktu pembuatan. 
+        // Jika order baru dibuat < 20 detik lalu, besar kemungkinan user baru saja buka/tutup popup.
+        const now = new Date();
+        const createdAt = new Date(order.created_at);
+        const diffInSeconds = (now - createdAt) / 1000;
+
+        if (order.status === 'pending' && diffInSeconds < 20) {
+            await connection.rollback();
+            return res.json({ 
+                message: "Menunggu interaksi pembayaran user...", 
+                status: 'pending' 
+            });
+        }
+
+        // 2. Cek Status ke Midtrans dengan penanganan Error 404
+        let midtransResponse;
+        try {
+            midtransResponse = await snap.transaction.status(order.midtrans_order_id);
+        } catch (error) {
+            // Jika ID transaksi tidak ditemukan (biasanya user klik X tanpa pilih metode bayar)
+            if (error.httpStatusCode === '404') {
+                // Gunakan console.debug agar tidak memenuhi log production utama
+                console.debug(`[INFO] Order ${order.midtrans_order_id} belum melakukan aksi di Snap.`);
+                await connection.rollback();
+                return res.status(404).json({ 
+                    message: "Transaksi belum dimulai atau popup ditutup tanpa aksi." 
+                });
+            }
+            throw error; 
+        }
+
+        // 3. Ambil data status dari respon Midtrans
         const transactionStatus = midtransResponse.transaction_status;
         const fraudStatus = midtransResponse.fraud_status;
-
         let newStatus = 'pending';
 
-        // 3. LOGIKA PENENTUAN STATUS
-        if (transactionStatus == 'capture' && fraudStatus == 'accept') {
-            newStatus = 'paid';
-        } else if (transactionStatus == 'settlement') {
+        // 4. Logika Penentuan Status
+        if ((transactionStatus === 'capture' && fraudStatus === 'accept') || transactionStatus === 'settlement') {
             newStatus = 'paid';
         } else if (['cancel', 'deny', 'expire'].includes(transactionStatus)) {
-            newStatus = 'cancelled'; // Pembayaran gagal atau waktu habis
+            newStatus = 'cancelled';
         }
 
-        // 4. EKSEKUSI UPDATE DATABASE
+        // 5. Eksekusi Update Database berdasarkan Status Baru
         if (newStatus === 'paid') {
-            // JIKA LUNAS: Set Order 'paid' & Produk 'inactive'
             await connection.query("UPDATE orders SET status = 'paid' WHERE id = ?", [orderId]);
             
-            const [orderItems] = await connection.query("SELECT product_id FROM order_items WHERE order_id = ?", [orderId]);
+            const [orderItems] = await connection.query(
+                "SELECT product_id FROM order_items WHERE order_id = ?", 
+                [orderId]
+            );
+            
             for (const item of orderItems) {
-                await connection.query("UPDATE products SET status = 'inactive' WHERE id = ?", [item.product_id]);
+                await connection.query(
+                    "UPDATE products SET status = 'inactive' WHERE id = ?", 
+                    [item.product_id]
+                );
             }
-            console.log(`[PAID] Order #${orderId} sukses, produk ditarik dari etalase.`);
+            console.log(`[PAID] Order #${orderId} sukses.`);
 
         } else if (newStatus === 'cancelled') {
-            // JIKA GAGAL/EXPIRED: Set Order 'cancelled' & Kembalikan Produk ke 'active'
             await connection.query("UPDATE orders SET status = 'cancelled' WHERE id = ?", [orderId]);
             
-            const [orderItems] = await connection.query("SELECT product_id FROM order_items WHERE order_id = ?", [orderId]);
+            const [orderItems] = await connection.query(
+                "SELECT product_id FROM order_items WHERE order_id = ?", 
+                [orderId]
+            );
+            
             for (const item of orderItems) {
-                await connection.query("UPDATE products SET status = 'active' WHERE id = ?", [item.product_id]);
+                await connection.query(
+                    "UPDATE products SET status = 'active' WHERE id = ?", 
+                    [item.product_id]
+                );
             }
-            console.log(`[CANCELLED] Order #${orderId} batal, produk dikembalikan ke etalase.`);
+            console.log(`[CANCELLED] Order #${orderId} batal.`);
         }
 
         await connection.commit();
         res.json({ message: "Status diperbarui", status: newStatus });
 
     } catch (error) {
-        await connection.rollback();
-        console.error("[ERROR]", error);
-        res.status(500).json({ message: "Gagal update status" });
+        if (connection) await connection.rollback();
+        console.error("[PAYMENT UPDATE ERROR]:", error.message);
+        res.status(500).json({ message: "Gagal memperbarui status" });
     } finally {
-        connection.release();
+        if (connection) connection.release();
     }
 };
-
 const completeOrder = async (req, res) => {
     const orderId = req.params.id;
     // const userId = req.user.id; // Aktifkan jika ingin validasi pemilik

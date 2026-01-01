@@ -61,27 +61,36 @@ const filteredOrders = computed(() => {
 
 // --- FUNGSI 1: CEK STATUS BAYAR ---
 const checkStatusManual = async (orderId) => {
+    // Tampilkan loading yang lebih cantik
     Swal.fire({
-        title: 'Mengecek Status...',
-        text: 'Menghubungi server...',
+        title: 'Sinkronisasi...',
+        text: 'Memverifikasi pembayaran dengan sistem Midtrans',
+        allowOutsideClick: false,
         didOpen: () => Swal.showLoading()
     });
 
     try {
+        // Menggunakan PUT sesuai route update status kamu
         const response = await axios.put(`${API_URL}/orders/${orderId}/status`);
         
         if (response.data.status === 'paid') {
-            Swal.fire('Lunas!', 'Pembayaran berhasil dikonfirmasi.', 'success');
+            await Swal.fire('Lunas!', 'Pembayaran sudah terverifikasi. Barang akan segera kami kemas.', 'success');
             fetchOrders(); 
-            activeTab.value = 'packed'; 
-        } else if (response.data.status === 'pending') {
-            Swal.fire('Belum Lunas', 'Status masih Pending.', 'info');
-        } else {
-            Swal.fire('Info', `Status saat ini: ${response.data.status}`, 'info');
+            activeTab.value = 'packed'; // Pindah tab otomatis
+        } else if (response.data.status === 'cancelled') {
+            await Swal.fire('Dibatalkan', 'Pesanan ini telah kedaluwarsa atau dibatalkan.', 'error');
             fetchOrders();
+        } else {
+            // Jika masih pending
+            Swal.fire('Pending', 'Kami belum menerima konfirmasi pembayaran dari bank/merchant.', 'info');
         }
     } catch (error) {
-        Swal.fire('Gagal', 'Tidak bisa menghubungi server.', 'error');
+        // Jika backend kirim 404 (Belum ada interaksi Midtrans)
+        if (error.response?.status === 404) {
+            Swal.fire('Belum Ada Aksi', 'Silakan klik tombol "Bayar Sekarang" terlebih dahulu.', 'info');
+        } else {
+            Swal.fire('Gagal', 'Gagal sinkronisasi. Coba lagi dalam beberapa saat.', 'error');
+        }
     }
 };
 
@@ -119,13 +128,28 @@ const handleComplete = (orderId) => {
 const handlePay = (order) => {
     if (order.snap_token) {
         window.snap.pay(order.snap_token, {
-            onSuccess: function(result) { checkStatusManual(order.id); },
-            onPending: function(result) { Swal.fire('Menunggu', 'Silakan selesaikan pembayaran.', 'info'); },
-            onError: function(result) { Swal.fire('Gagal', 'Pembayaran gagal.', 'error'); },
-            onClose: function() { checkStatusManual(order.id); }
+            onSuccess: function(result) { 
+                // Jika sukses, baru cek ke backend untuk ubah status jadi 'paid'
+                checkStatusManual(order.id); 
+            },
+            onPending: function(result) { 
+                Swal.fire('Menunggu', 'Silakan selesaikan pembayaran sesuai instruksi di aplikasi.', 'info'); 
+            },
+            onError: function(result) { 
+                Swal.fire('Gagal', 'Pembayaran gagal, silakan coba lagi.', 'error'); 
+            },
+            onClose: function() { 
+                // PERBAIKAN: Jangan panggil checkStatusManual di sini agar tidak spam log [SKIP] di BE.
+                // Karena user belum bayar, status di DB pasti tetap 'pending'.
+                Swal.fire({
+                    title: 'Belum Bayar?',
+                    text: 'Pesananmu tetap tersimpan. Kamu bisa bayar kapan saja sebelum stok habis.',
+                    icon: 'warning'
+                });
+            }
         });
     } else {
-        Swal.fire('Error', 'Token Pembayaran Hilang', 'error');
+        Swal.fire('Error', 'Sesi pembayaran tidak ditemukan. Silakan hubungi admin.', 'error');
     }
 };
 

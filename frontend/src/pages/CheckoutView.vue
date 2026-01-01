@@ -111,9 +111,13 @@ const formatRp = (price) => {
 
 // --- CREATE ORDER ---
 const handleCreateOrder = async () => {
-    // 1. Validasi Input (Sudah Benar)
+    // 1. Validasi Input
     if (!form.recipient_name || !form.shipping_address || !form.recipient_phone) {
-        Swal.fire({ icon: 'warning', title: 'Alamat Belum Lengkap', text: 'Mohon lengkapi Nama, Telepon, dan Alamat.' });
+        Swal.fire({ 
+            icon: 'warning', 
+            title: 'Alamat Belum Lengkap', 
+            text: 'Mohon lengkapi Nama, Telepon, dan Alamat.' 
+        });
         return;
     }
 
@@ -135,43 +139,74 @@ const handleCreateOrder = async () => {
         // 4. CEK: Apakah Tokennya Ada?
         if (snapToken) {
             
-            // --- INI BAGIAN YANG HILANG DI KODE KAMU ---
-            // Kita panggil popup Midtrans menggunakan token tadi
-            
+            // Panggil popup Midtrans Snap
             window.snap.pay(snapToken, {
                 // A. Jika Pembayaran SUKSES
                 onSuccess: function(result) {
-                    Swal.fire('Berhasil!', 'Pembayaran sukses diterima.', 'success');
-                    router.push('/myorder'); // Baru pindah halaman di sini
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Berhasil!',
+                        text: 'Pembayaran sukses diterima.',
+                        confirmButtonText: 'Lihat Pesanan'
+                    }).then(() => {
+                        // Berpindah halaman HANYA setelah user klik tombol di alert
+                        router.push('/myorder');
+                    });
                 },
                 
-                // B. Jika Pembayaran PENDING (Misal pilih ATM/Indomaret tapi belum bayar)
+                // B. Jika Pembayaran PENDING
                 onPending: function(result) {
-                    Swal.fire('Menunggu Pembayaran', 'Silakan selesaikan pembayaran Anda.', 'info');
-                    router.push('/myorder'); // Pindah halaman
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'Menunggu Pembayaran',
+                        text: 'Silakan selesaikan pembayaran Anda sesuai instruksi.',
+                        confirmButtonText: 'Ke Riwayat Pesanan'
+                    }).then(() => {
+                        router.push('/myorder');
+                    });
                 },
                 
                 // C. Jika Pembayaran GAGAL
                 onError: function(result) {
-                    Swal.fire('Gagal', 'Pembayaran gagal atau dibatalkan.', 'error');
-                    router.push('/myorder'); // Pindah halaman
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal',
+                        text: 'Terjadi kesalahan pada proses pembayaran.',
+                        confirmButtonText: 'Tutup'
+                    });
+                    // Tidak langsung redirect agar user bisa mencoba kembali jika perlu
                 },
                 
                 // D. Jika User MENUTUP Popup (Klik tombol silang X)
                 onClose: function() {
-                    Swal.fire('Pembayaran Tertunda', 'Anda bisa membayar nanti lewat menu Pesanan.', 'warning');
-                    router.push('/myorder'); // Pindah halaman
+                    Swal.fire({
+                        title: 'Belum Selesai?',
+                        text: 'Tenang, pesanan Anda sudah tersimpan. Anda bisa melanjutkannya nanti di menu Pesanan Saya.',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'Ke Pesanan Saya',
+                        cancelButtonText: 'Tetap di Sini'
+                    }).then((result) => {
+                        // Redirect HANYA jika user memilih untuk pindah ke halaman pesanan
+                        if (result.isConfirmed) {
+                            router.push('/myorder');
+                        }
+                    });
                 }
             });
 
         } else {
-            // Jaga-jaga kalau backend tidak kirim token (jarang terjadi)
+            // Jika token tidak ada, arahkan ke myorder untuk cek manual
             router.push('/myorder');
         }
 
     } catch (error) {
         console.error(error);
-        Swal.fire({ icon: 'error', title: 'Gagal', text: error.response?.data?.message || 'Terjadi kesalahan.' });
+        Swal.fire({ 
+            icon: 'error', 
+            title: 'Gagal', 
+            text: error.response?.data?.message || 'Terjadi kesalahan saat membuat pesanan.' 
+        });
     } finally {
         isProcessing.value = false;
     }
