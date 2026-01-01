@@ -171,8 +171,9 @@ const updatePaymentStatus = async (req, res) => {
     try {
         await connection.beginTransaction();
 
+        // 1. Ambil Data Order
         const [rows] = await connection.query(
-            "SELECT midtrans_order_id, status, created_at FROM orders WHERE id = ?", 
+            "SELECT midtrans_order_id, status FROM orders WHERE id = ?", 
             [orderId]
         );
 
@@ -183,24 +184,28 @@ const updatePaymentStatus = async (req, res) => {
 
         const order = rows[0];
 
+        // Jika sudah final, jangan proses lagi
         if (order.status === 'paid' || order.status === 'cancelled') {
             await connection.rollback();
             return res.json({ message: "Status sudah final", status: order.status });
         }
 
+        // 2. Cek Status ke Midtrans
         let midtransResponse;
         try {
             midtransResponse = await snap.transaction.status(order.midtrans_order_id);
         } catch (error) {
             if (error.httpStatusCode === '404') {
                 await connection.rollback();
-                return res.status(404).json({ message: "Transaksi belum dimulai." });
+                return res.status(404).json({ message: "Transaksi belum dimulai di Midtrans." });
             }
             throw error; 
         }
 
         const transactionStatus = midtransResponse.transaction_status;
         const fraudStatus = midtransResponse.fraud_status;
+        
+        // 3. Tentukan newStatus (Didefinisikan DI SINI sebelum digunakan)
         let newStatus = 'pending';
 
         if ((transactionStatus === 'capture' && fraudStatus === 'accept') || transactionStatus === 'settlement') {
@@ -209,25 +214,49 @@ const updatePaymentStatus = async (req, res) => {
             newStatus = 'cancelled';
         }
 
+        // 4. Eksekusi Logika Database berdasarkan newStatus
         if (newStatus === 'paid') {
+            // A. Update status pesanan
             await connection.query("UPDATE orders SET status = 'paid' WHERE id = ?", [orderId]);
-            const [orderItems] = await connection.query("SELECT product_id FROM order_items WHERE order_id = ?", [orderId]);
+            
+            // B. Ambil item untuk diproses
+            const [orderItems] = await connection.query(
+                "SELECT product_id FROM order_items WHERE order_id = ?", 
+                [orderId]
+            );
+            
             for (const item of orderItems) {
-                await connection.query("UPDATE products SET status = 'inactive' WHERE id = ?", [item.product_id]);
+                // C. Set produk menjadi INACTIVE
+                await connection.query(
+                    "UPDATE products SET status = 'inactive' WHERE id = ?", 
+                    [item.product_id]
+                );
+
+                // D. HAPUS dari semua keranjang user lain (Solusi Bug Restore)
+                await connection.query(
+                    "DELETE FROM carts WHERE product_id = ?", 
+                    [item.product_id]
+                );
             }
+            console.log(`[PAID] Order #${orderId} sukses & keranjang dibersihkan.`);
+
         } else if (newStatus === 'cancelled') {
             await connection.query("UPDATE orders SET status = 'cancelled' WHERE id = ?", [orderId]);
+            
+            // Jika batal, kembalikan produk jadi active (jika stok masih ada/thrift)
             const [orderItems] = await connection.query("SELECT product_id FROM order_items WHERE order_id = ?", [orderId]);
             for (const item of orderItems) {
                 await connection.query("UPDATE products SET status = 'active' WHERE id = ?", [item.product_id]);
             }
         }
 
+        // 5. Selesaikan Transaksi
         await connection.commit();
         res.json({ message: "Status diperbarui", status: newStatus });
 
     } catch (error) {
         if (connection) await connection.rollback();
+        console.error("Error Payment Update:", error);
         res.status(500).json({ message: "Gagal memperbarui status" });
     } finally {
         if (connection) connection.release();
