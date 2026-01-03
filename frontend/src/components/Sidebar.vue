@@ -74,14 +74,14 @@ const handleLogout = () => {
           <span>My Profile</span>
         </RouterLink>
 
-        <RouterLink 
+        <!-- <RouterLink 
           :to="{ name: 'Wishlist' }" 
           class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group"
           :class="$route.path.includes('/user/wishlist') ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-600 hover:bg-gray-50'"
         >
           <Heart class="w-5 h-5" />
           <span>Wishlist</span>
-        </RouterLink>
+        </RouterLink> -->
 
         <RouterLink 
           :to="{ name: 'Cart' }" 

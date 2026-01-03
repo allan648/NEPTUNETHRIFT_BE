@@ -2,6 +2,12 @@
 import { ref, computed, onMounted } from "vue";
 import { useRoute, useRouter } from 'vue-router';
 import Swal from 'sweetalert2';
+import axios from 'axios';
+
+// 1. IMPORT AUTH STORE (Sesuai yang digunakan di navbar.vue)
+import { useAuthStore } from '@/stores/authStore';
+
+// --- ASSETS ---
 import GambarHome from "@/asset/images/GambarHome.png";
 import NikeAirForce1 from "@/asset/images/NikeAirForce1.png";
 import NikeAirMax1 from "@/asset/images/NikeAirMax1.png";
@@ -14,348 +20,230 @@ import Casual from "@/asset/images/Casual.png";
 import Formal from "@/asset/images/Formal.png";
 import Boots from "@/asset/images/Boots.png";
 
+// --- CONFIG ---
 const route = useRoute();
 const router = useRouter();
+const authStore = useAuthStore(); // 2. INISIALISASI STORE
+const API_URL = "http://localhost:3000/api";
+axios.defaults.withCredentials = true;
 
-onMounted(() => {
-  // Cek apakah ada pesan error di URL?
-  if (route.query.error === 'inactive') {
-    
-    // TAMPILKAN ALERT
-   Swal.fire({
-      icon: 'error',                          // Ikon silang merah
-      title: 'Akses Ditolak',                 // Judul Besar
-      text: 'Akun Anda telah dinonaktifkan. Silakan hubungi Customer Service.', // Pesan
-      confirmButtonText: 'Hubungi CS',        // Tombol Konfirmasi
-      confirmButtonColor: '#d33',             // Warna tombol merah
-      footer: '<a href="/help">Butuh bantuan?</a>' // Link kecil di bawah (opsional)
-    }).then((result) => {
-      // JIKA TOMBOL 'Hubungi CS' DIKLIK:
-      if (result.isConfirmed) {
-        // Arahkan ke halaman About, tepat di bagian ID #contact-cs
-        router.push({ path: '/about', hash: '#contact-cs' });
-      }
-    });
-    // Bersihkan URL agar bersih (hapus ?error=inactive)
-    router.replace({ query: null });
-  }
-});
+// --- STATE ---
+const rating = ref(0); 
+const hoverRating = ref(0); 
+const feedbackMessage = ref("");
 
+// Mock Data
 const newArrivals = ref([
-  {
-    id: 1,
-    name: "Nike Air Force 1",
-    price: 1200000,
-    image: NikeAirForce1,
-    rating: 4.5,
-  },
-  {
-    id: 2,
-    name: "Patta x Nike Air Max 1",
-    price: 2400000,
-    discount: 2600000,
-    image: NikeAirMax1,
-    rating: 5,
-  },
-  {
-    id: 3,
-    name: "Vans UA Sentry Old Skool",
-    price: 1800000,
-    image: Vans,
-    rating: 4.5,
-  },
-  {
-    id: 4,
-    name: "Nike Airforce 1 Shadow",
-    price: 1300000,
-    discount: 1600000,
-    image: NikeShadow,
-    rating: 4.5,
-  },
+  { id: 1, name: "Nike Air Force 1", price: 1200000, image: NikeAirForce1 },
+  { id: 2, name: "Patta x Nike Air Max 1", price: 2400000, discount: 2600000, image: NikeAirMax1 },
+  { id: 3, name: "Vans UA Sentry Old Skool", price: 1800000, image: Vans },
+  { id: 4, name: "Nike Airforce 1 Shadow", price: 1300000, discount: 1600000, image: NikeShadow },
 ]);
 
 const promoSelling = ref([
-  { id: 1, name: "New Balance", price: 2120000, discount: 2320000, image: NewBalance, rating: 3.5 },
-  { id: 2, name: "Vans Old Skool", price: 1450000, image: Vans, rating: 4 },
-  { id: 3, name: "Nike Air Force 1", price: 800000, image: NikeAirForce1, rating: 4 },
-  { id: 4, name: "Nike Air Max 1", price: 2100000, image: NikeAirMax1, rating: 4 },
+  { id: 1, name: "New Balance", price: 2120000, discount: 2320000, image: NewBalance },
+  { id: 2, name: "Vans Old Skool", price: 1450000, image: Vans },
+  { id: 3, name: "Nike Air Force 1", price: 800000, image: NikeAirForce1 },
+  { id: 4, name: "Nike Air Max 1", price: 2100000, image: NikeAirMax1 },
 ]);
 
-// --- LOGIKA CAROUSEL ---
 const brands = ref(["NIKE", "VERSACE", "ZARA", "GUCCI", "PRADA", "Calvin Klein"]);
 
-// Gandakan array brand untuk loop animasi yang mulus
+// --- COMPUTED ---
 const duplicatedBrands = computed(() => [
-  ...brands.value,
-  ...brands.value,
-  ...brands.value, // Gandakan minimal 3x agar track cukup panjang
-  ...brands.value,
+  ...brands.value, ...brands.value, ...brands.value, ...brands.value,
 ]);
-// --- AKHIR LOGIKA CAROUSEL ---
 
+// --- FUNCTIONS ---
+const submitFeedback = async () => {
+  if (rating.value === 0) {
+    Swal.fire('Pilih Bintang', 'Silakan tentukan rating bintang Anda.', 'warning');
+    return;
+  }
+  if (!feedbackMessage.value.trim()) {
+    Swal.fire('Pesan Kosong', 'Berikan sedikit ulasan Anda.', 'warning');
+    return;
+  }
+
+  try {
+    const response = await axios.post(`${API_URL}/reviews`, {
+      rating: rating.value,
+      comment: feedbackMessage.value
+    });
+
+    Swal.fire({
+      icon: 'success',
+      title: 'Terima Kasih!',
+      text: response.data.message,
+      showConfirmButton: false,
+      timer: 2000
+    });
+
+    rating.value = 0;
+    feedbackMessage.value = "";
+  } catch (error) {
+    if (error.response && error.response.status === 401) {
+      Swal.fire('Belum Login', 'Anda harus login untuk mengirim feedback.', 'info');
+    } else {
+      Swal.fire('Error', 'Gagal mengirim review.', 'error');
+    }
+  }
+};
+
+// --- HOOKS ---
+onMounted(() => {
+  const errorType = route.query.error;
+
+  if (errorType) {
+    // 1. Jika Akun DINONAKTIFKAN
+    if (errorType === 'login_failed') {
+      Swal.fire({
+        icon: 'error',
+        title: 'Akses Ditolak',
+        text: 'Akun Anda telah dinonaktifkan. Silakan hubungi Customer Service.',
+        confirmButtonText: 'Hubungi CS',
+        confirmButtonColor: '#d33',
+        allowOutsideClick: false
+      }).then((result) => {
+        if (result.isConfirmed) {
+          router.push({ path: '/about', hash: '#contact-cs' });
+        }
+      });
+    } 
+    
+    // 2. Jika LOGIN GAGAL (Memicu Modal Login)
+    // else if (errorType === 'login_failed') {
+    //   Swal.fire({
+    //     icon: 'warning',
+    //     title: 'Gagal Login',
+    //     text: 'Email atau password yang Anda masukkan salah. Silakan coba lagi.',
+    //     confirmButtonText: 'Coba Lagi',
+    //     confirmButtonColor: '#1e40af',
+    //   }).then((result) => {
+    //     if (result.isConfirmed) {
+    //       // MODIFIKASI: Membuka modal login melalui authStore
+    //       authStore.openLoginModal(); 
+    //     }
+    //   });
+    // }
+
+    // Bersihkan URL dari parameter error
+    router.replace({ query: {} });
+  }
+});
 </script>
 
 <template>
   <div class="w-full">
- <!-- HERO -->
-  <section class="relative bg-black text-white" data-aos="fade-up">
-    <img :src="GambarHome" alt="shoes" class="w-full h-[500px] object-cover opacity-70" />
+    <section class="relative bg-black text-white overflow-hidden">
+      <img :src="GambarHome" class="w-full h-[500px] object-cover opacity-60 scale-105" />
+      <div class="absolute inset-0 flex flex-col justify-center px-10 md:px-32">
+        <h1 class="text-6xl font-black italic tracking-tighter leading-none uppercase" data-aos="fade-right">
+          Find Shoes<br />That Matches<br />Your Style
+        </h1>
+        <p class="mt-4 max-w-md text-gray-300 italic" data-aos="fade-right" data-aos-delay="100">
+          Discover curated selections of thrift and limited edition shoes designed for your unique style.
+        </p>
+        <router-link to="/product" class="mt-8 w-fit bg-blue-800 text-white px-10 py-4 rounded-full font-black uppercase text-xs tracking-[0.2em] hover:bg-white hover:text-black transition-all shadow-xl">
+          Shop Now
+        </router-link>
+      </div>
+    </section>
 
-    <!-- Konten utama (judul, paragraf, tombol) yang berada di tengah -->
-    <div
-      class="absolute top-0 left-0 w-full h-full flex flex-col justify-center items-start px-10"
-      data-aos="zoom-in"
-      data-aos-delay="100"
-    >
-      <h1 class="text-6xl font-bold">FIND SHOES<br />THAT MATCHES<br />YOUR STYLE</h1>
-      <p class="mt-4 max-w-md">
-        Discover curated selections of thrift and limited edition shoes designed to bring out your
-        unique style.
-      </p>
-      <a
-        href="#"
-        class="mt-6 bg-blue-800 text-white px-6 py-3 rounded-lg shadow hover:bg-blue-600"
-        data-aos="fade-right"
-        data-aos-delay="200"
-        >Shop Now</a
-      >
-    </div>
-
-    <!-- PERBAIKAN: Div statistik dibuat absolute dan ditempatkan di bawah -->
-    <div
-      class="absolute bottom-8 left-0 right-0 flex justify-center items-center gap-8 text-md"
-      data-aos="fade-up"
-      data-aos-delay="300"
-    >
-      <span><strong>200+</strong> International Brands</span>
-      <span><strong>2,000+</strong> High Quality Products</span>
-      <span><strong>30,000+</strong> Happy Customers</span>
-    </div>
-  </section>
-
-    <!-- BRAND STRIP (MODIFIED WITH PURE CSS ANIMATION LOOP) -->
-    <section
-      class="bg-blue-900 py-8 text-white font-semibold text-lg overflow-hidden brand-carousel-container"
-      data-aos="fade-up"
-    >
+    <section class="bg-blue-900 py-10 text-white font-black text-xl overflow-hidden border-y border-blue-800">
       <div class="flex scrolling-track">
-        <!-- Render list brand yang sudah digandakan -->
-        <div v-for="(brand, index) in duplicatedBrands" :key="index" class="px-16">
-          <span>{{ brand }}</span>
+        <div v-for="(brand, index) in duplicatedBrands" :key="index" class="px-16 uppercase italic tracking-widest">
+          {{ brand }}
         </div>
       </div>
     </section>
 
-    <!-- NEW ARRIVALS -->
-    <section class="py-18 px-8 sm:px-16 lg:px-[140px] pb-24 md:pb-30">
-      <h2 class="text-center text-3xl font-extrabold mb-6" data-aos="fade-up" data-aos-delay="100">
-        NEW <span class="text-blue-800">ARRIVALS</span>
-      </h2>
-      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-        <div
-          v-for="item in newArrivals"
-          :key="item.id"
-          class="bg-white shadow rounded-lg p-4"
-          :data-aos="'fade-up'"
-          data-aos-once="true"
-        >
-          <img :src="item.image" :alt="item.name" class="w-full h-48 object-cover rounded" />
-          <h3 class="mt-4 font-semibold">{{ item.name }}</h3>
-          <div class="flex items-center gap-2">
-            <span class="text-lg font-bold">Rp.{{ item.price }}</span>
-            <span v-if="item.discount" class="text-sm line-through text-gray-400"
-              >Rp{{ item.discount }}</span
-            >
+    <section class="py-20 px-8 sm:px-16 lg:px-[140px]">
+      <h2 class="text-center text-4xl font-black italic mb-12 uppercase tracking-tighter">New <span class="text-blue-800">Arrivals</span></h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
+        <div v-for="item in newArrivals" :key="item.id" class="group">
+          <div class="bg-gray-100 rounded-[32px] overflow-hidden mb-4 aspect-square relative">
+             <img :src="item.image" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
           </div>
+          <h3 class="font-bold text-gray-900 uppercase truncate px-2">{{ item.name }}</h3>
+          <p class="font-black text-blue-900 px-2 mt-1">Rp{{ item.price.toLocaleString() }}</p>
         </div>
-      </div>
-      <div class="flex justify-center mt-6">
-  <RouterLink 
-    to="/product" 
-    class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-100 transition-all duration-300"
-  >
-    View All
-  </RouterLink>
-</div>
-    </section>
-
-    <!-- PROMO SELLING -->
-    <section class="py-18 px-8 sm:px-16 lg:px-[140px] pb-24 md:pb-30 bg-gray-50" data-aos="fade-up">
-      <h2 class="text-center text-3xl font-extrabold mb-6">
-        PROMO <span class="text-blue-800">SELLING</span>
-      </h2>
-      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-        <div
-          v-for="(item, idx) in promoSelling"
-          :key="item.id"
-          class="bg-white shadow rounded-lg p-4"
-          :data-aos="'zoom-in'"
-          :data-aos-delay="idx * 100"
-        >
-          <img :src="item.image" :alt="item.name" class="w-full h-48 object-cover rounded" />
-          <h3 class="mt-4 font-semibold">{{ item.name }}</h3>
-          <div class="flex items-center gap-2">
-            <span class="text-lg font-bold">Rp.{{ item.price }}</span>
-            <span v-if="item.discount" class="text-sm line-through text-gray-400"
-              >Rp.{{ item.discount }}</span
-            >
-          </div>
-        </div>
-      </div>
-      <div class="flex justify-center mt-6">
-        <button class="px-6 py-2 border rounded-lg">View All</button>
       </div>
     </section>
 
-    <!-- BROWSE STYLE -->
-    <section class="py-12 px-6 sm:px-16 lg:px-[140px] pb-24 md:pb-30">
-      <div class="max-w-6xl mx-auto bg-gray-100 shadow-lg rounded-2xl p-8">
-        <h2 class="text-center text-3xl font-extrabold mb-10">
-          BROWSE BY <span class="text-blue-800">SHOES STYLE</span>
-        </h2>
-        <!-- Grid untuk Style -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          <!-- Card Casual -->
-          <div
-            class="relative h-64 w-[350px] rounded-xl overflow-hidden bg-cover bg-center"
-            data-aos="fade-right"
-          >
-          <img :src="Casual" alt="">
-            <div class="absolute inset-0"></div>
-            <h3
-              class="absolute top-5 left-5 text-2xl font-bold text-white"
-              style="text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5)"
-            >
-              Casual
-            </h3>
+    <section class="py-20 px-8 sm:px-16 lg:px-[140px] bg-gray-50 rounded-[60px]">
+      <h2 class="text-center text-4xl font-black italic mb-12 uppercase tracking-tighter">Promo <span class="text-blue-800">Selling</span></h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
+        <div v-for="item in promoSelling" :key="item.id" class="group">
+          <div class="bg-white rounded-[32px] overflow-hidden mb-4 aspect-square relative shadow-sm border border-gray-100">
+             <img :src="item.image" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
           </div>
-
-          <!-- Card Formal -->
-          <div
-            class="relative -left-32 h-64 w-[610px] rounded-xl overflow-hidden bg-cover bg-center"
-            data-aos="fade-left"
-            data-aos-delay="100"
-          >
-          <img :src="Formal" alt="">
-            <div class="absolute inset-0"></div>
-            <h3
-              class="absolute top-5 left-5 text-2xl font-bold text-white"
-              style="text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5)"
-            >
-              Formal
-            </h3>
-          </div>
-
-          <!-- Card Party -->
-          <div
-            class="relative h-64 w-[610px] rounded-xl overflow-hidden bg-cover bg-center"
-            data-aos="zoom-in"
-            data-aos-delay="200"
-          >
-          <img :src="Boots" alt="">
-            <div class="absolute inset-0"></div>
-            <h3
-              class="absolute top-5 left-5 text-2xl font-bold text-white"
-              style="text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5)"
-            >
-              Boots
-            </h3>
-          </div>
-
-          <!-- Card Gym -->
-          <div
-            class="relative -right-32 h-64 w-[355px] rounded-xl overflow-hidden bg-cover bg-center"
-            data-aos="fade-up"
-            data-aos-delay="250"
-          >
-          <img :src="Sport" alt="">
-            <div class="absolute inset-0"></div>
-            <h3
-              class="absolute top-5 left-5 text-2xl font-bold text-white"
-              style="text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5)"
-            >
-              Sports
-            </h3>
+          <h3 class="font-bold text-gray-900 uppercase truncate px-2">{{ item.name }}</h3>
+          <div class="flex items-center gap-3 px-2 mt-1">
+            <span class="font-black text-red-600">Rp{{ item.price.toLocaleString() }}</span>
+            <span v-if="item.discount" class="text-xs line-through text-gray-300 font-bold">Rp{{ item.discount.toLocaleString() }}</span>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- HAPPY CUSTOMERS -->
-    <section class="py-18 px-8 sm:px-16 lg:px-[140px] pb-24 md:pb-30 bg-gray-50" data-aos="fade-up">
-      <div class="flex justify-between">
-        <h2 class="text-3xl font-extrabold mb-6">
-          OUR HAPPY <span class="text-blue-800">CUSTOMERS</span>
-        </h2>
-        <div>
-          <a
-            href="/detailreview"
-            class="bg-blue-800 text-white px-4 py-3 rounded-lg shadow"
-            data-aos="zoom-in"
-            >More Review</a
-          >
-        </div>
-      </div>
-      <div class="grid md:grid-cols-3 gap-6">
-        <div class="bg-white shadow rounded-lg p-8" data-aos="fade-right">
-          <img :src="Rating" alt="rating" class="pb-2" />
-          <p>"I'm blown away by the quality and style of the shoes I received!"</p>
-          <span class="mt-2 block font-semibold">- Sarah M.</span>
-        </div>
-        <div class="bg-white shadow rounded-lg p-8" data-aos="fade-up" data-aos-delay="100">
-          <img :src="Rating" alt="rating" class="pb-2" />
-          <p>"The range of options is truly remarkable, catering to many styles."</p>
-          <span class="mt-2 block font-semibold">- Alex K.</span>
-        </div>
-        <div class="bg-white shadow rounded-lg p-8" data-aos="fade-left" data-aos-delay="200">
-          <img :src="Rating" alt="rating" class="pb-2" />
-          <p>"The collection of shoes is not only diverse but always on point."</p>
-          <span class="mt-2 block font-semibold">- James L.</span>
+    <section class="py-20 px-8 sm:px-16 lg:px-[140px]">
+      <div class="bg-gray-900 rounded-[50px] p-12 overflow-hidden relative">
+        <h2 class="text-center text-4xl font-black italic mb-12 uppercase tracking-tighter text-white">Browse By <span class="text-blue-500">Style</span></h2>
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-6 relative z-10">
+          <div class="md:col-span-4 h-72 rounded-[32px] overflow-hidden relative group">
+            <img :src="Casual" class="w-full h-full object-cover opacity-80 group-hover:scale-110 transition-all duration-700" />
+            <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+            <h3 class="absolute top-8 left-8 text-3xl font-black text-white uppercase italic">Casual</h3>
+          </div>
+          <div class="md:col-span-8 h-72 rounded-[32px] overflow-hidden relative group">
+            <img :src="Formal" class="w-full h-full object-cover opacity-80 group-hover:scale-110 transition-all duration-700" />
+            <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+            <h3 class="absolute top-8 left-8 text-3xl font-black text-white uppercase italic">Formal</h3>
+          </div>
+          <div class="md:col-span-8 h-72 rounded-[32px] overflow-hidden relative group">
+            <img :src="Boots" class="w-full h-full object-cover opacity-80 group-hover:scale-110 transition-all duration-700" />
+            <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+            <h3 class="absolute top-8 left-8 text-3xl font-black text-white uppercase italic">Boots</h3>
+          </div>
+          <div class="md:col-span-4 h-72 rounded-[32px] overflow-hidden relative group">
+            <img :src="Sport" class="w-full h-full object-cover opacity-80 group-hover:scale-110 transition-all duration-700" />
+            <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+            <h3 class="absolute top-8 left-8 text-3xl font-black text-white uppercase italic">Sports</h3>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- RATE WEBSITE -->
-    <section class="py-18 px-8 sm:px-16 lg:px-[140px] pb-24 md:pb-30">
-      <div class="flex flex-col md:flex-row gap-10 md:gap-8">
-        <!-- Info -->
-        <div class="flex flex-col flex-2">
-          <h1 class="text-4xl sm:text-[42px] font-bold leading-tight sm:leading-[1.2]">
-            Rate Our <span class="text-blue-800">Website</span>
-          </h1>
-          <p class="text-gray-600 text-sm sm:text-base mt-4">
-            We’d love to hear your feedback! By giving us a rating, you help us improve and create a
-            better experience for all visitors.
-          </p>
+    <section class="py-24 px-8 sm:px-16 lg:px-[140px] pb-40">
+      <div class="flex flex-col md:flex-row gap-16 items-center">
+        <div class="flex-1">
+          <h1 class="text-6xl font-black italic uppercase tracking-tighter leading-none mb-6">Rate Our <br> <span class="text-blue-800">Experience</span></h1>
+          <p class="text-gray-500 text-lg italic max-w-sm">"Your feedback helps us to maintain the quality of curated thrift fashion."</p>
         </div>
 
-        <!-- Rating Form -->
-        <div
-          class="p-4 sm:p-6 rounded-3xl w-full flex-1 border border-gray-200"
-          data-aos="fade-left"
-        >
-          <h4 class="font-semibold text-2xl sm:text-[32px]">Leave a Rating</h4>
-          <p class="text-gray-600 text-sm sm:text-base mb-6">Feel free to send us your thoughts.</p>
-          <form class="flex flex-col gap-4">
-            <input
-              type="text"
-              placeholder="Username"
-              class="px-4 w-full py-3 text-sm border placeholder:text-gray-500 border-gray-200 rounded-full"
-            />
-            <input
-              type="email"
-              placeholder="Email"
-              class="px-4 w-full py-3 text-sm border placeholder:text-gray-500 border-gray-200 rounded-full"
-            />
-            <textarea
-              rows="5"
-              placeholder="Message"
-              class="px-4 py-3 text-sm placeholder:text-gray-500 border border-gray-200 rounded-3xl"
-            ></textarea>
-            <button type="submit" class="bg-blue-800 text-white px-6 py-3 font-medium rounded-full">
-              Send
+        <div class="flex-1 w-full bg-white p-12 rounded-[50px] border border-gray-100 shadow-2xl shadow-blue-100/50">
+          <h4 class="font-black uppercase text-xl mb-2 tracking-tighter">Leave a Rating</h4>
+          <p class="text-gray-400 text-[10px] uppercase font-bold tracking-[0.2em] mb-8">Authentication via logged in account</p>
+          
+          <div class="flex flex-col gap-8">
+            <div class="flex flex-col gap-2">
+              <span class="text-[10px] font-black text-gray-300 uppercase tracking-widest">Select Stars</span>
+              <div class="flex gap-3">
+                <button v-for="star in 5" :key="star" @click="rating = star" @mouseover="hoverRating = star" @mouseleave="hoverRating = 0" class="transition-all transform hover:scale-125 active:scale-90">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-12 h-12 transition-colors duration-200" :class="(hoverRating || rating) >= star ? 'text-yellow-400' : 'text-gray-100'">
+                    <path fill-rule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z" clip-rule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <textarea v-model="feedbackMessage" rows="4" placeholder="Describe your shopping experience..." class="w-full px-8 py-5 bg-gray-50 border-none rounded-[32px] focus:ring-2 focus:ring-blue-800 text-sm italic shadow-inner"></textarea>
+
+            <button @click="submitFeedback" class="bg-blue-800 text-white py-5 rounded-full font-black uppercase text-xs tracking-[0.3em] shadow-lg shadow-blue-200 hover:bg-black transition-all active:scale-95">
+              Submit Review
             </button>
-          </form>
+          </div>
         </div>
       </div>
     </section>
@@ -363,36 +251,7 @@ const duplicatedBrands = computed(() => [
 </template>
 
 <style scoped>
-/* Definisikan keyframes untuk animasi scroll */
-@keyframes scroll {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-100%);
-  }
-}
-
-.brand-carousel-container {
-  overflow: hidden;
-}
-
-.scrolling-track {
-  display: flex;
-  white-space: nowrap;
-  animation: scroll 20s linear infinite;
-}
-
-/* Terapkan animasi ke track */
-.scrolling-track {
-  /* Durasi animasi: Anda bisa ubah 20s menjadi lebih cepat (misal 15s) atau lebih lambat (misal 30s) */
-  animation: scroll 20s linear infinite;
-  /* 'linear' -> kecepatan konstan */
-  /* 'infinite' -> mengulang selamanya tanpa henti dan tanpa 'reverse' */
-}
-
-/* Jeda animasi saat mouse hover di atas container */
-.brand-carousel-container:hover .scrolling-track {
-  animation-play-state: paused;
-}
+@keyframes scroll { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+.scrolling-track { display: flex; white-space: nowrap; animation: scroll 25s linear infinite; }
+.scrolling-track:hover { animation-play-state: paused; }
 </style>

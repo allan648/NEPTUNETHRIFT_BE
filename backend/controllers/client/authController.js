@@ -6,6 +6,8 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
+const { sendResetPasswordEmail, sendVerificationEmail } = require('../../services/emailService');
+require('dotenv').config(); // Pastikan dotenv dipanggil agar bisa baca .env
 
 
 const transporter = nodemailer.createTransport({
@@ -35,51 +37,31 @@ const sendEmail = async (to, subject, htmlContent) => {
 // 1. SIGNUP (Dulunya Register)
 // 1. SIGNUP (Updated)
 const signup = async (req, res) => {
-    const { email, password } = req.body; // Username otomatis dibuat sistem
-
+    const { email, password } = req.body;
     try {
-        // 1. Validasi
-        if (!email || !password) return res.status(400).json({ message: "Email dan Password wajib diisi!" });
-
-        // 2. Cek Duplikat
         const [existingUser] = await db.query("SELECT * FROM users WHERE email = ?", [email]);
         if (existingUser.length > 0) return res.status(400).json({ message: "Email sudah terdaftar" });
 
-        // 3. Persiapan Data
         const defaultUsername = `User-${Date.now()}`;
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
-        
-        // --- LOGIC BARU: TOKEN VERIFIKASI ---
         const verificationToken = crypto.randomBytes(32).toString('hex');
 
-        // 4. Simpan ke DB (is_verified = 0)
         await db.query(
-            `INSERT INTO users 
-            (username, email, password, role, is_active, is_verified, verification_token, createdAt, updatedAt) 
-            VALUES (?, ?, ?, 'customer', 1, 0, ?, NOW(), NOW())`,
+            `INSERT INTO users (username, email, password, role, is_active, is_verified, verification_token, createdAt, updatedAt) 
+             VALUES (?, ?, ?, 'customer', 1, 0, ?, NOW(), NOW())`,
             [defaultUsername, email, hashedPassword, verificationToken]
         );
 
-        // 5. Kirim Email Verifikasi
-        // Link mengarah ke Frontend (Vue)
         const verifyLink = `${process.env.CLIENT_URL}/verify-email?token=${verificationToken}`;
         
-        const emailHtml = `
-            <h3>Selamat Datang di Neptune Thrift!</h3>
-            <p>Terima kasih telah mendaftar. Silakan klik tombol di bawah ini untuk memverifikasi akun Anda:</p>
-            <a href="${verifyLink}" style="background-color: #1d4ed8; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Verifikasi Akun Saya</a>
-            <br><br>
-            <p>Atau klik link ini: <a href="${verifyLink}">${verifyLink}</a></p>
-        `;
+        // GUNAKAN SERVICE (Sudah fix Port 587)
+        await sendVerificationEmail(email, verifyLink);
 
-        await sendEmail(email, "Verifikasi Akun Neptune Thrift", emailHtml);
-
-        res.status(201).json({ message: "Registrasi berhasil! Silakan cek email Anda untuk verifikasi." });
-
+        res.status(201).json({ message: "Registrasi berhasil! Silakan cek email Anda." });
     } catch (error) {
         console.error("Signup Error:", error);
-        res.status(500).json({ message: "Gagal registrasi" });
+        res.status(500).json({ message: "Gagal registrasi (Cek koneksi email)" });
     }
 };
 
@@ -108,6 +90,7 @@ const verifyEmail = async (req, res) => {
 };
 
 // A. REQUEST LUPA PASSWORD (Kirim Email)
+// 2. FORGOT PASSWORD
 const forgotPassword = async (req, res) => {
     const { email } = req.body;
     try {
@@ -115,29 +98,23 @@ const forgotPassword = async (req, res) => {
         if (rows.length === 0) return res.status(404).json({ message: "Email tidak ditemukan" });
 
         const user = rows[0];
-        
-        // Buat Token Reset & Expired time (1 Jam dari sekarang)
         const resetToken = crypto.randomBytes(32).toString('hex');
-        const expireTime = new Date(Date.now() + 3600000); // 1 jam
+        const expireTime = new Date(Date.now() + 3600000);
 
-        await db.query("UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?", [resetToken, expireTime, user.id]);
+        await db.query(
+            "UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?", 
+            [resetToken, expireTime, user.id]
+        );
 
-        // Link Reset Password Frontend
         const resetLink = `${process.env.CLIENT_URL}/reset-password?token=${resetToken}`;
         
-        const emailHtml = `
-            <h3>Permintaan Reset Password</h3>
-            <p>Anda meminta untuk mereset password. Klik link di bawah ini (berlaku 1 jam):</p>
-            <a href="${resetLink}" style="background-color: #d33; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Reset Password</a>
-        `;
-
-        await sendEmail(email, "Reset Password Neptune Thrift", emailHtml);
-
-        res.json({ message: "Link reset password telah dikirim ke email Anda." });
+        // GUNAKAN SERVICE (Sudah fix Port 587)
+        await sendResetPasswordEmail(email, resetLink);
+        res.json({ message: "Link reset password telah dikirim ke email." });
 
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: "Gagal memproses permintaan." });
+        console.error("Forgot Password Error:", error);
+        res.status(500).json({ message: "Gagal mengirim email reset." });
     }
 };
 

@@ -96,7 +96,7 @@
                 @click="handleForgotPassword" 
                 class="text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium transition-colors"
               >
-                Lupa Password?
+                Reset Password?
               </button>
             </div>
 

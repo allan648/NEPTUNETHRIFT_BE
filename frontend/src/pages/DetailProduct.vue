@@ -36,26 +36,45 @@ const getDiscountPercentage = (oldPrice, newPrice) => {
 };
 
 const fetchProductDetail = async () => {
+  const id = route.params.id;
+
+  // 1. CEK ID: Jika ID tidak ada, langsung berhenti, jangan panggil API
+  if (!id || id === 'undefined' || id === null) {
+      console.warn("DEBUG: ID tidak ditemukan, membatalkan request API.");
+      isLoading.value = false;
+      return;
+  }
+
+  const targetUrl = `${API_URL}/products/${id}`;
+  console.log("DEBUG: Mencoba mengambil data dari:", targetUrl);
+
   isLoading.value = true;
   try {
-    const id = route.params.id;
-    const response = await axios.get(`${API_URL}/products/${id}`);
+    const response = await axios.get(targetUrl);
     
-    product.value = response.data.product;
-    relatedProducts.value = response.data.related;
+    if (response.data && response.data.product) {
+      product.value = response.data.product;
+      relatedProducts.value = response.data.related || [];
 
-    // Reset & Fill Gallery
-    gallery.value = [];
-    if (product.value.image) gallery.value.push(product.value.image);
-    if (product.value.image_2) gallery.value.push(product.value.image_2);
-    if (product.value.image_3) gallery.value.push(product.value.image_3);
-
-    if (gallery.value.length > 0) activeImage.value = gallery.value[0];
-    
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+      // Setup Gallery
+      gallery.value = [];
+      if (product.value.image) gallery.value.push(product.value.image);
+      if (product.value.image_2) gallery.value.push(product.value.image_2);
+      if (product.value.image_3) gallery.value.push(product.value.image_3);
+      if (gallery.value.length > 0) activeImage.value = gallery.value[0];
+      
+      window.scrollTo(0, 0);
+    } else {
+      // Jika ID ada tapi data kosong di DB
+      console.error("Produk tidak ditemukan di Database.");
+    }
   } catch (error) {
-    console.error("Gagal load detail", error);
-    Swal.fire('Error', 'Produk tidak ditemukan', 'error');
+    // 2. CEK ERROR: Jika 404, berarti rute di backend atau ID salah
+    if (error.response && error.response.status === 404) {
+      console.error("Error 404: Alamat API salah atau ID tidak terdaftar.");
+    } else {
+      console.error("Gagal load detail:", error.message);
+    }
   } finally {
     isLoading.value = false;
   }

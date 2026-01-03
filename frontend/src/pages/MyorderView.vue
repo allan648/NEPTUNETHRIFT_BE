@@ -261,7 +261,7 @@ onMounted(() => {
                       <button v-if="order.status === 'pending'" @click="handlePay(order)" class="px-6 py-2 bg-blue-900 text-white text-sm font-bold rounded hover:bg-blue-800">
                           Bayar Sekarang
                       </button>
-
+                      
                       <button v-if="order.status === 'paid'" class="px-6 py-2 bg-gray-100 text-gray-500 text-sm font-bold rounded cursor-not-allowed">
                           Menunggu Pengiriman
                       </button>
@@ -284,9 +284,14 @@ onMounted(() => {
                              ✅ Konfirmasi Pesanan Diterima
                           </button>
                       </div>
-
                   </div>
               </div>
+             <div v-if="order.status === 'pending'" class="text-end pt-2">
+                <p class="text-bold text-gray-400">
+                    Klik cek status jika sudah melakukan pembayaran
+                </p>
+            </div>
+
           </div>
       </div>
     </div>

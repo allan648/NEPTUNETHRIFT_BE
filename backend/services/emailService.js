@@ -3,12 +3,64 @@ require('dotenv').config(); // Pastikan dotenv dipanggil agar bisa baca .env
 
 // 1. Konfigurasi Pengirim (Ambil dari .env)
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false, // Port 587 menggunakan false
     auth: {
-        user: process.env.EMAIL_USER, // <--- Pakai variabel environment
-        pass: process.env.EMAIL_PASS  // <--- Pakai variabel environment
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS 
+    },
+    tls: {
+        rejectUnauthorized: false // Menghindari error sertifikat di sistem lokal
     }
 });
+
+// A. Fungsi Kirim Email Verifikasi (Pindahan dari authController)
+const sendVerificationEmail = async (userEmail, verifyLink) => {
+    const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
+            <h2 style="color: #1d4ed8; text-align: center;">Verifikasi Akun Neptune Thrift 🌊</h2>
+            <p>Selamat Datang!</p>
+            <p>Terima kasih telah mendaftar. Silakan klik tombol di bawah ini untuk memverifikasi akun Anda:</p>
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="${verifyLink}" style="background-color: #1d4ed8; color: #fff; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+                    Verifikasi Akun Saya
+                </a>
+            </div>
+            <p style="font-size: 11px; color: #888;">Jika tombol tidak bekerja, klik link berikut: <br> ${verifyLink}</p>
+        </div>
+    `;
+
+    return transporter.sendMail({
+        from: `"Neptune Thrift" <${process.env.EMAIL_USER}>`,
+        to: userEmail,
+        subject: "📧 Verifikasi Akun Anda",
+        html: emailHtml
+    });
+};
+
+// B. Fungsi Kirim Email Reset Password
+const sendResetPasswordEmail = async (userEmail, resetLink) => {
+    const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
+            <h2 style="color: #1e3a8a; text-align: center;">Reset Password Neptune Thrift 🌊</h2>
+            <p>Kami menerima permintaan untuk mereset password Anda. Klik tombol di bawah:</p>
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="${resetLink}" style="background-color: #000; color: #fff; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+                    Reset Password Sekarang
+                </a>
+            </div>
+            <p style="color: #666; font-size: 12px;">Link berlaku selama 1 jam.</p>
+        </div>
+    `;
+
+    return transporter.sendMail({
+        from: `"Neptune Thrift Support" <${process.env.EMAIL_USER}>`,
+        to: userEmail,
+        subject: "🔒 Instruksi Reset Password",
+        html: emailHtml
+    });
+};
 
 // 2. Fungsi Kirim Email Resi
 // 2. Fungsi Kirim Email Resi
@@ -112,4 +164,7 @@ const sendArrivedEmail = async (userEmail, recipientName, orderId) => {
     }
 };
 
-module.exports = { sendResiEmail, sendArrivedEmail };
+
+
+
+module.exports = { sendResiEmail, sendArrivedEmail, sendResetPasswordEmail };

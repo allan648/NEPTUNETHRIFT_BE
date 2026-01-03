@@ -2,10 +2,9 @@ const db = require('../../db');
 const fs = require('fs');
 const path = require('path');
 
-// 1. AMBIL PRODUK (Bisa Semua, atau Filter by Brand/Category)
+// 1. AMBIL PRODUK (Publik & Admin)
 const getProducts = async (req, res) => {
     try {
-        // Tambahkan 'promo' ke destructuring query
         const { category_id, brand_id, search, admin, promo } = req.query; 
         
         let query = `
@@ -18,24 +17,16 @@ const getProducts = async (req, res) => {
 
         const params = [];
 
-        // --- LOGIKA FILTER ---
-
         if (admin === 'true') {
-            // Jika Admin: Tampilkan semua tanpa kecuali (untuk Management Product)
+            // Admin: Tampilkan semua
         } else {
-            // Jika BUKAN Admin (Pembeli):
             query += " AND p.status = 'active'";
-
             if (promo === 'true') {
-                // Jika sedang buka halaman PROMO: Tampilkan yang is_promotion = 1
                 query += " AND p.is_promotion = 1";
             } else {
-                // Jika sedang buka halaman PRODUCT BIASA: Tampilkan yang is_promotion = 0
                 query += " AND p.is_promotion = 0";
             }
         }
-
-        // --- FILTER TAMBAHAN (Kategori, Brand, Search) ---
 
         if (category_id) {
             query += " AND p.category_id = ?";
@@ -61,12 +52,45 @@ const getProducts = async (req, res) => {
         res.status(500).json({ error: "Gagal mengambil data produk" });
     }
 };
-// 2. TAMBAH PRODUK BARU
+
+// 2. AMBIL DETAIL PRODUK (Solusi Fix Error Router)
+const getProductDetail = async (req, res) => {
+    const { id } = req.params;
+    try {
+        // Ambil data produk utama
+        const [rows] = await db.query(`
+            SELECT p.*, c.name as category_name, b.name as brand_name 
+            FROM products p
+            JOIN categories c ON p.category_id = c.id
+            JOIN brands b ON p.brand_id = b.id
+            WHERE p.id = ?
+        `, [id]);
+
+        if (rows.length === 0) {
+            return res.status(404).json({ message: "Produk tidak ditemukan" });
+        }
+
+        const product = rows[0];
+
+        // Ambil produk terkait (Kategori sama, tapi bukan produk ini sendiri)
+        const [related] = await db.query(`
+            SELECT id, name, price, image, is_promotion, discount_price 
+            FROM products 
+            WHERE category_id = ? AND id != ? AND status = 'active'
+            LIMIT 4
+        `, [product.category_id, id]);
+
+        res.json({ product, related });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Gagal mengambil detail produk" });
+    }
+};
+
+// 3. TAMBAH PRODUK BARU
 const createProduct = async (req, res) => {
     const { name, description, price, condition, size, category_id, brand_id } = req.body;
     
-    // Ambil file dari req.files (karena pakai upload.fields)
-    // Cek apakah file ada, jika ada buat URL-nya
     const files = req.files || {};
     const image1 = files['image'] ? `http://localhost:3000/uploads/${files['image'][0].filename}` : null;
     const image2 = files['image_2'] ? `http://localhost:3000/uploads/${files['image_2'][0].filename}` : null;
@@ -82,92 +106,74 @@ const createProduct = async (req, res) => {
         console.error(error);
         res.status(500).json({ error: "Gagal menambah produk" });
     }
-};// 3. EDIT PRODUK
+};
+
+// 4. EDIT PRODUK
 const updateProduct = async (req, res) => {
     const { id } = req.params;
     const { 
-        name, 
-        description, 
-        price, 
-        condition, 
-        size, 
-        category_id, 
-        brand_id, 
-        is_promotion, 
-        discount_price 
+        name, description, price, condition, size, 
+        category_id, brand_id, is_promotion, discount_price 
     } = req.body;
     
     try {
-        // 1. Pastikan nilai angka benar-benar angka (karena FormData mengirim string)
         const finalPrice = parseFloat(price) || 0;
         const finalDiscountPrice = parseFloat(discount_price) || 0;
         const finalIsPromotion = parseInt(is_promotion) || 0;
         const finalCondition = parseInt(condition) || 5;
 
-        // 2. Susun Query Dasar
-        // Gunakan backticks pada `condition` karena itu reserved word di MySQL
         let sql = `
             UPDATE products 
-            SET name = ?, 
-                description = ?, 
-                price = ?, 
-                \`condition\` = ?, 
-                size = ?, 
-                category_id = ?, 
-                brand_id = ?, 
-                is_promotion = ?, 
+            SET name = ?, description = ?, price = ?, \`condition\` = ?, 
+                size = ?, category_id = ?, brand_id = ?, is_promotion = ?, 
                 discount_price = ?
         `;
 
-        // 3. Susun Array Params sesuai urutan tanda tanya di atas
         let params = [
-            name, 
-            description, 
-            finalPrice, 
-            finalCondition, 
-            size, 
-            category_id, 
-            brand_id, 
-            finalIsPromotion, 
-            finalDiscountPrice
+            name, description, finalPrice, finalCondition, 
+            size, category_id, brand_id, finalIsPromotion, finalDiscountPrice
         ];
 
-        // 4. Cek jika ada upload gambar baru
-        if (req.file) {
-            const newImage = `http://localhost:3000/uploads/${req.file.filename}`;
-            sql += ", image = ? ";
-            params.push(newImage);
+        // Cek upload gambar (Support 3 field gambar)
+        const files = req.files || {};
+        if (files['image']) {
+            sql += ", image = ?";
+            params.push(`http://localhost:3000/uploads/${files['image'][0].filename}`);
+        }
+        if (files['image_2']) {
+            sql += ", image_2 = ?";
+            params.push(`http://localhost:3000/uploads/${files['image_2'][0].filename}`);
+        }
+        if (files['image_3']) {
+            sql += ", image_3 = ?";
+            params.push(`http://localhost:3000/uploads/${files['image_3'][0].filename}`);
         }
 
-        // 5. Terakhir tambahkan ID untuk WHERE
         sql += " WHERE id = ?";
         params.push(id);
 
-        // 6. Eksekusi
         await db.query(sql, params);
-        
         res.json({ message: "Produk berhasil diupdate!" });
     } catch (error) {
-        console.error("Detail Error SQL:", error);
-        res.status(500).json({ error: "Gagal update produk", detail: error.message });
+        console.error("Update Error:", error);
+        res.status(500).json({ error: "Gagal update produk" });
     }
 };
 
-// 4. HAPUS PRODUK
-// Menghapus (Ubah status jadi inactive)
+// 5. SOFT DELETE & RESTORE
 const softDeleteProduct = async (req, res) => {
     const { id } = req.params;
     await db.query("UPDATE products SET status = 'inactive' WHERE id = ?", [id]);
-    res.json({ message: "Produk dinonaktifkan dari user" });
+    res.json({ message: "Produk dinonaktifkan" });
 };
 
-// Mengembalikan (Ubah status jadi active)
 const restoreProduct = async (req, res) => {
     const { id } = req.params;
     await db.query("UPDATE products SET status = 'active' WHERE id = ?", [id]);
     res.json({ message: "Produk diaktifkan kembali" });
 };
-// Helper untuk Dropdown di Frontend
+
+// 6. METADATA
 const getMetadata = async (req, res) => {
     try {
         const [categories] = await db.query("SELECT * FROM categories");
@@ -178,5 +184,13 @@ const getMetadata = async (req, res) => {
     }
 };
 
-
-module.exports = { getProducts, createProduct, updateProduct, softDeleteProduct, getMetadata, restoreProduct };
+// EXPORT SEMUA FUNGSI (Pastikan getProductDetail ada di sini)
+module.exports = { 
+    getProducts, 
+    getProductDetail, // <-- Sangat penting
+    createProduct, 
+    updateProduct, 
+    softDeleteProduct, 
+    restoreProduct, 
+    getMetadata 
+};

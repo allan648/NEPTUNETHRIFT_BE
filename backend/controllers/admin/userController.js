@@ -95,4 +95,35 @@ const getUserDetail = async (req, res) => {
     }
 };
 
-module.exports = { getAllUsers, deactivateUser, reactivateUser, getUsersList, makeAdmin, getUserDetail };
+
+const updateUserRole = async (req, res) => {
+    const { id } = req.params;
+    const { role } = req.body; // Mengambil 'admin' atau 'customer' dari frontend
+
+    try {
+        // 1. Validasi input
+        if (!['admin', 'customer'].includes(role)) {
+            return res.status(400).json({ message: "Role tidak valid!" });
+        }
+
+        // 2. Update ke Database
+        const [result] = await db.query(
+            "UPDATE users SET role = ? WHERE id = ?", 
+            [role, id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: "User tidak ditemukan" });
+        }
+
+        res.json({ 
+            message: `Role user berhasil diperbarui menjadi ${role.toUpperCase()}` 
+        });
+
+    } catch (error) {
+        console.error("Error Update Role:", error);
+        res.status(500).json({ message: "Gagal memperbarui role" });
+    }
+};
+
+module.exports = { getAllUsers, deactivateUser, reactivateUser, getUsersList, makeAdmin, getUserDetail, updateUserRole };

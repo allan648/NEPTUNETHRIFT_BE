@@ -3,34 +3,41 @@ const router = express.Router();
 const productController = require('../../controllers/admin/productController');
 const { isAuthenticated, isAdmin } = require('../../middleware/authMiddleware');
 const upload = require('../../middleware/uploadMiddleware');
+const db = require('../../db'); // Pastikan db diimport untuk rute inline
 
-// ... import lainnya
-
-// Konfigurasi Upload untuk 3 Field Berbeda
+// Konfigurasi Upload untuk 3 Field
 const uploadFields = upload.fields([
-  { name: 'image', maxCount: 1 },   // Foto Utama
-  { name: 'image_2', maxCount: 1 }, // Foto Detail 1
-  { name: 'image_3', maxCount: 1 }  // Foto Detail 2
+  { name: 'image', maxCount: 1 },
+  { name: 'image_2', maxCount: 1 },
+  { name: 'image_3', maxCount: 1 }
 ]);
 
-router.use(isAuthenticated, isAdmin);
-// Update Rute Create & Update
+// ==========================================
+// RUTE PUBLIK (Bisa diakses Customer & Guest)
+// ==========================================
+
+router.get('/promo', async (req, res) => {
+    try {
+        const [rows] = await db.query("SELECT * FROM products WHERE is_promotion = 1 AND status = 'active'");
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ message: "Gagal ambil data promo" });
+    }
+});
+
+router.get('/metadata', productController.getMetadata); // Untuk filter di frontend
+router.get('/', productController.getProducts);         // List produk publik
+router.get('/:id', productController.getProductDetail); // DETAIL PRODUK (Penting!)
+
+// ==========================================
+// RUTE ADMIN (Hanya Admin yang bisa akses)
+// ==========================================
+
+router.use(isAuthenticated, isAdmin); // Proteksi mulai dari sini ke bawah
+
 router.post('/', uploadFields, productController.createProduct);
 router.put('/:id', uploadFields, productController.updateProduct);
+router.put('/:id/soft-delete', productController.softDeleteProduct);
+router.put('/:id/restore', productController.restoreProduct);
 
-// ...
-// Proteksi: Hanya Admin
-
-// Rute Produk
-router.get('/', productController.getProducts);         // Lihat semua + Filter
-router.get('/metadata', productController.getMetadata); // Ambil list Kategori & Brand (untuk dropdown)
-router.post('/', upload.single('image'), productController.createProduct); // Tambah
-router.put('/:id', upload.single('image'), productController.updateProduct); // Edit
-// router.put('/:id/soft-delete', softDeleteProduct)
-router.put('/:id/soft-delete', productController.softDeleteProduct); // Soft Delete
-router.put('/:id/restore', productController.restoreProduct);     // Restore
-router.get('/products/promo', async (req, res) => {
-    const [rows] = await db.query("SELECT * FROM products WHERE is_promotion = 1 AND status = 'active'");
-    res.json(rows);
-});
 module.exports = router;
